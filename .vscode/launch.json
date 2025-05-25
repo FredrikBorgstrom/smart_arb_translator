@@ -1,0 +1,39 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "arb_translator",
+            "request": "launch",
+            "type": "dart",
+            "program": "bin/translate.dart",
+            "console": "terminal",
+            "args": [
+                "--source_arb",
+                "./test/resources/example_one.arb",
+                "--api_key",
+                "D:/github/ABCx3/dart_secrets/api_key.txt",
+                "--language_codes",
+                "sv,es"
+            ],
+        },
+        {
+            "name": "translate abcx3 directory",
+            "request": "launch",
+            "type": "dart",
+            "program": "bin/translate.dart",
+            "console": "terminal",
+            "args": [
+                "--source_dir",
+                "/Volumes/WD_SN770_2TB/Github/abcx3_flutter/lib/l10n_source/en",
+                "--api_key",
+                "/Volumes/WD_SN770_2TB/Github/abcx3_flutter/dart_secrets/api_key.txt",
+                "--language_codes",
+                "sv",
+                "--append-lang-code"
+                // "--l10n_directory",
+                // "/Volumes/WD_SN770_2TB/Github/abcx3_flutter/lib/l10n"
+            ],
+        }
+    ]
+}
