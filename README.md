@@ -99,8 +99,7 @@ smart_arb_translator \
   --source_arb lib/l10n/app_en.arb \
   --api_key path/to/api_key.txt \
   --language_codes es,fr \
-  --output_file_name app \
-  --append-lang-code
+  --output_file_name app
 ```
 
 ### Command Line Options
@@ -113,8 +112,8 @@ smart_arb_translator \
 | `--language_codes` | Comma-separated target language codes | `es` |
 | `--cache_directory` | Directory for translation cache | `lib/l10n_cache` |
 | `--l10n_directory` | Output directory for merged files | `lib/l10n` |
-| `--output_file_name` | Custom output filename | `smart_arb_translator_` |
-| `--append-lang-code` / `--no-append-lang-code` | Append language code to filenames | `true` |
+| `--output_file_name` | Custom output filename | `intl_` |
+
 
 ### Programmatic Usage
 

@@ -6,6 +6,7 @@ import 'package:smart_arb_translator/src/file_operations.dart';
 import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/models/arb_resource.dart';
 import 'package:smart_arb_translator/src/translation_service.dart';
+import 'package:smart_arb_translator/src/translation_statistics.dart';
 
 class SingleFileProcessor {
   static Future<void> processSingleFile(
@@ -14,7 +15,6 @@ class SingleFileProcessor {
     String apiKey,
     String? outputDirectory,
     String outputFileName,
-    bool appendLangCode,
   ) async {
     final arbFile = FileOperations.createFileRef(sourceArb);
     final src = arbFile.readAsStringSync();
@@ -22,20 +22,57 @@ class SingleFileProcessor {
 
     outputDirectory ??= arbFile.path.substring(0, arbFile.path.lastIndexOf('/') + 1);
 
-    final actionLists = ArbProcessor.createActionLists(arbDocument);
+    // Check for existing cached source file for change detection
+    final sourceFileBaseName = path.basename(arbFile.path);
+    final cachedSourcePath = path.join(outputDirectory, sourceFileBaseName);
+
+    ArbDocument? previousSourceDocument;
+    if (File(cachedSourcePath).existsSync()) {
+      print('Reading existing cached source file for change detection...');
+      try {
+        final cachedContent = File(cachedSourcePath).readAsStringSync();
+        previousSourceDocument = ArbDocument.decode(cachedContent);
+      } catch (e) {
+        print('Warning: Could not parse existing cached source file: $cachedSourcePath');
+      }
+    }
+
+    // Copy source file to cache directory for consistency and future change detection
+    print('Copying source file to cache directory...');
+    await File(cachedSourcePath).create(recursive: true);
+    await arbFile.copy(cachedSourcePath);
+    print('Source file copied to: $cachedSourcePath');
+
+    // Initialize statistics tracking
+    final statistics = TranslationStatistics();
+
+    // Get source file info for filename construction
+    final sourceFileName = path.basename(arbFile.path);
+    final sourceFileNameWithoutExt = path.basenameWithoutExtension(sourceFileName);
+    final sourceFileExt = path.extension(sourceFileName);
 
     for (final languageCode in languageCodes) {
-      print('• Processing for $languageCode');
+      // Construct proper output filename with language code and extension
+      final finalOutputFileName = outputFileName.isEmpty
+          ? '${sourceFileNameWithoutExt}_$languageCode$sourceFileExt'
+          : outputFileName.endsWith('.arb')
+              ? '${outputFileName.substring(0, outputFileName.length - 4)}_$languageCode.arb'
+              : '${outputFileName}$languageCode.arb';
 
-      await ArbProcessor.createArbFile(
-        languageCode: languageCode,
-        arbDocument: arbDocument,
-        actionLists: actionLists,
-        outputDirectory: outputDirectory,
-        outputFileName: outputFileName,
-        apiKey: apiKey,
+      // Use the smart change detection processing
+      await processSingleFileWithChanges(
+        cachedSourcePath,
+        [languageCode],
+        apiKey,
+        outputDirectory,
+        finalOutputFileName,
+        previousSourceDocument,
+        statistics,
       );
     }
+
+    // Print translation statistics
+    statistics.printSummary();
   }
 
   static Future<void> processSingleFileWithChanges(
@@ -44,8 +81,8 @@ class SingleFileProcessor {
     String apiKey,
     String outputDirectory,
     String outputFileName,
-    bool appendLangCode,
     ArbDocument? previousSourceDocument,
+    TranslationStatistics? statistics,
   ) async {
     final sourceArbFile = File(sourceArbPath);
     final sourceContent = sourceArbFile.readAsStringSync();
@@ -102,6 +139,11 @@ class SingleFileProcessor {
 
       if (needsTranslation) {
         keysToTranslate[key] = resource;
+        // Track translated content
+        statistics?.addTranslated(resource.text);
+      } else {
+        // Track cached content (keys that were skipped)
+        statistics?.addCached(resource.text);
       }
     }
 

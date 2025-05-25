@@ -24,25 +24,38 @@ void main(List<String> args) async {
   final result = ArbTranslatorArgumentParser.parseArguments(args);
 
   final sourcePath = result[ArbTranslatorArgumentParser.sourceDir] as String?;
-  final sourceDir = Directory(sourcePath ?? '');
-  if (!sourceDir.existsSync()) {
-    ConsoleUtils.setBrightRed();
-    stderr.write('Source directory $sourcePath does not exist');
-    exit(2);
+  final sourceArb = result[ArbTranslatorArgumentParser.sourceArb] as String?;
+
+  // Validate source directory exists if source_dir is provided
+  if (sourcePath != null) {
+    final sourceDir = Directory(sourcePath);
+    if (!sourceDir.existsSync()) {
+      ConsoleUtils.setBrightRed();
+      stderr.write('Source directory $sourcePath does not exist');
+      exit(2);
+    }
   }
 
-  final sourceArb = result[ArbTranslatorArgumentParser.sourceArb] as String?;
+  // Validate source ARB file exists if source_arb is provided
+  if (sourceArb != null) {
+    final sourceArbFile = File(sourceArb);
+    if (!sourceArbFile.existsSync()) {
+      ConsoleUtils.setBrightRed();
+      stderr.write('Source ARB file $sourceArb does not exist');
+      exit(2);
+    }
+  }
   final apiKeyFile = FileOperations.createFileRef(result[ArbTranslatorArgumentParser.apiKey] as String);
   String outputFileName = result[ArbTranslatorArgumentParser.outputFileName] as String;
-  if (outputFileName == 'smart_arb_translator_') {
+  /* if (outputFileName == 'intl_') {
     outputFileName = '';
-  }
+  } */
   final languageCodes =
       (result[ArbTranslatorArgumentParser.languageCodes] as List<String>).map((e) => e.trim()).toList();
 
   String? cachePath = result[ArbTranslatorArgumentParser.cacheDirectory];
   cachePath ??= path.join('lib', 'l10n_cache');
-  final appendLangCode = result[ArbTranslatorArgumentParser.appendLangCode] as bool? ?? true;
+
   String? l10nDirectory = result[ArbTranslatorArgumentParser.l10nDirectory];
   l10nDirectory ??= path.join('lib', 'l10n');
 
@@ -57,10 +70,14 @@ void main(List<String> args) async {
 
   if (sourcePath != null) {
     await DirectoryProcessor.processDirectory(
-        sourcePath, languageCodes, apiKey, cachePath, outputFileName, appendLangCode, l10nDirectory);
+        sourcePath, languageCodes, apiKey, cachePath, outputFileName, l10nDirectory);
   } else if (sourceArb != null) {
-    await SingleFileProcessor.processSingleFile(
-        sourceArb, languageCodes, apiKey, cachePath, outputFileName, appendLangCode);
+    await SingleFileProcessor.processSingleFile(sourceArb, languageCodes, apiKey, cachePath, outputFileName);
+
+    // Create l10n directory and merge files for single file processing
+    if (l10nDirectory != null) {
+      await DirectoryProcessor.mergeToL10nDirectory(cachePath!, l10nDirectory, languageCodes);
+    }
   } else {
     ConsoleUtils.setBrightRed();
     stderr.write('Either --source_arb or --source_dir must be provided.');

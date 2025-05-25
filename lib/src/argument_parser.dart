@@ -10,7 +10,7 @@ class ArbTranslatorArgumentParser {
   static const _cacheDirectory = 'cache_directory';
   static const _languageCodes = 'language_codes';
   static const _outputFileName = 'output_file_name';
-  static const _appendLangCode = 'append-lang-code';
+
   static const _l10nDirectory = 'l10n_directory';
 
   static ArgParser _initiateParse() {
@@ -35,14 +35,9 @@ class ArbTranslatorArgumentParser {
       ..addOption(_apiKey, help: 'path to api_key must be provided')
       ..addOption(
         _outputFileName,
-        defaultsTo: 'smart_arb_translator_',
+        defaultsTo: 'intl_',
         help: 'output_file_name is the file name used to concate before language '
             'codes',
-      )
-      ..addFlag(
-        _appendLangCode,
-        defaultsTo: true,
-        help: 'whether to append language code to output filenames',
       )
       ..addOption(
         _l10nDirectory,
@@ -87,6 +82,6 @@ class ArbTranslatorArgumentParser {
   static String get cacheDirectory => _cacheDirectory;
   static String get languageCodes => _languageCodes;
   static String get outputFileName => _outputFileName;
-  static String get appendLangCode => _appendLangCode;
+
   static String get l10nDirectory => _l10nDirectory;
 }

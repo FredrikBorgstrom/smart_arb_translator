@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 import 'package:smart_arb_translator/src/file_operations.dart' as translator_file_ops;
 import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/single_file_processor.dart';
+import 'package:smart_arb_translator/src/translation_statistics.dart';
 
 class DirectoryProcessor {
   static Future<void> processDirectory(
@@ -14,7 +15,6 @@ class DirectoryProcessor {
     String apiKey,
     String? cachePath,
     String outputFileName,
-    bool appendLangCode,
     String? l10nDirectory,
   ) async {
     Directory sourceDir = Directory(sourcePath);
@@ -51,15 +51,16 @@ class DirectoryProcessor {
           print('Warning: Could not parse existing file: ${arbFile.path}');
         }
       }
-
-      print('Copying source directory to output directory...');
-      await translator_file_ops.FileOperations.copyDirectory(sourceDir, copiedSourceDir);
-      print('Source directory copied to: $copiedSourceDir');
-
-      // Update sourceDir to point to the copied directory
-      sourceDir = copiedSourceDir;
-      sourcePath = copiedSourceDir.path;
     }
+
+    // Always copy source directory to cache for processing and future comparison
+    print('Copying source directory to cache directory...');
+    await translator_file_ops.FileOperations.copyDirectory(sourceDir, copiedSourceDir);
+    print('Source directory copied to: $copiedSourceDir');
+
+    // Update sourceDir to point to the copied directory
+    sourceDir = copiedSourceDir;
+    sourcePath = copiedSourceDir.path;
 
     // Find all ARB files recursively
     final arbFiles = await translator_file_ops.FileOperations.findArbFiles(sourceDir);
@@ -72,6 +73,9 @@ class DirectoryProcessor {
     print('Found ${arbFiles.length} ARB files to translate');
     print('Output directory: $effectiveOutputPath');
 
+    // Initialize statistics tracking
+    final statistics = TranslationStatistics();
+
     for (final arbFile in arbFiles) {
       final fileName = path.basename(arbFile.path);
       final fileNameWithoutExt = path.basenameWithoutExtension(fileName);
@@ -80,12 +84,8 @@ class DirectoryProcessor {
       for (final languageCode in languageCodes) {
         final langOutputDir = path.join(effectiveOutputPath, languageCode);
         final langOutputFileName = outputFileName.isEmpty
-            ? appendLangCode
-                ? '${fileNameWithoutExt}_$languageCode$fileExt'
-                : fileName
-            : appendLangCode
-                ? '${outputFileName}_$languageCode$fileExt'
-                : outputFileName;
+            ? '${fileNameWithoutExt}_$languageCode$fileExt'
+            : '${outputFileName}_$languageCode$fileExt';
 
         final relativePath = path.relative(arbFile.path, from: sourcePath);
         final previousDocument = previousSourceFiles[relativePath];
@@ -96,14 +96,17 @@ class DirectoryProcessor {
           apiKey,
           langOutputDir,
           langOutputFileName,
-          appendLangCode,
           previousDocument,
+          statistics,
         );
       }
     }
 
     // Merge all language files to l10n directory
     await mergeToL10nDirectory(effectiveOutputPath, effectiveL10nPath, languageCodes);
+
+    // Print translation statistics
+    statistics.printSummary();
   }
 
   static Future<void> mergeToL10nDirectory(

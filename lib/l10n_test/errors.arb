@@ -1,0 +1,17 @@
+{
+  "@@locale": "en",
+  "@@last_modified": "2024-01-01T00:00:00.000Z",
+  "serverError": "Our servers found the following error: {error}",
+  "@serverError": {
+    "description": "Error message from server",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "networkError": "Network connection failed",
+  "@networkError": {
+    "description": "Network error message"
+  }
+} 

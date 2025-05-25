@@ -1,0 +1,21 @@
+{
+  "@@locale": "en",
+  "@@last_modified": "2024-01-01T00:00:00.000Z",
+  "hello": "Hello",
+  "@hello": {
+    "description": "A greeting message"
+  },
+  "welcome": "Welcome {name}!",
+  "@welcome": {
+    "description": "Welcome message with name placeholder",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "goodbye": "Goodbye",
+  "@goodbye": {
+    "description": "A farewell message"
+  }
+} 

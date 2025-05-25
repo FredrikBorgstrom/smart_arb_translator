@@ -28,8 +28,7 @@
                 "--api_key",
                 "path/to/your/api_key.txt",
                 "--language_codes",
-                "sv,es",
-                "--append-lang-code"
+                "sv,es"
             ],
         }
     ]
