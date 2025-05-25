@@ -35,7 +35,7 @@ class ArbTranslatorArgumentParser {
       ..addOption(_apiKey, help: 'path to api_key must be provided')
       ..addOption(
         _outputFileName,
-        defaultsTo: 'arb_translator_',
+        defaultsTo: 'smart_arb_translator_',
         help: 'output_file_name is the file name used to concate before language '
             'codes',
       )

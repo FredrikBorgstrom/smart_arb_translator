@@ -1,7 +1,12 @@
 # Smart ARB Translator
 
 [![Pub Version](https://img.shields.io/pub/v/smart_arb_translator.svg)](https://pub.dev/packages/smart_arb_translator)
+[![Pub Points](https://img.shields.io/pub/points/smart_arb_translator)](https://pub.dev/packages/smart_arb_translator/score)
+[![Popularity](https://img.shields.io/pub/popularity/smart_arb_translator)](https://pub.dev/packages/smart_arb_translator/score)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub Stars](https://img.shields.io/github/stars/FredrikBorgstrom/smart_arb_translator?style=social)](https://github.com/FredrikBorgstrom/smart_arb_translator)
+[![GitHub Issues](https://img.shields.io/github/issues/FredrikBorgstrom/smart_arb_translator)](https://github.com/FredrikBorgstrom/smart_arb_translator/issues)
+[![GitHub Last Commit](https://img.shields.io/github/last-commit/FredrikBorgstrom/smart_arb_translator)](https://github.com/FredrikBorgstrom/smart_arb_translator/commits/main)
 
 An intelligent command-line utility for translating ARB (Application Resource Bundle) files using Google Translate API. This package features smart change detection, modular architecture, and seamless integration with Flutter's internationalization workflow.
 
@@ -108,7 +113,7 @@ smart_arb_translator \
 | `--language_codes` | Comma-separated target language codes | `es` |
 | `--cache_directory` | Directory for translation cache | `lib/l10n_cache` |
 | `--l10n_directory` | Output directory for merged files | `lib/l10n` |
-| `--output_file_name` | Custom output filename | `arb_translator_` |
+| `--output_file_name` | Custom output filename | `smart_arb_translator_` |
 | `--append-lang-code` / `--no-append-lang-code` | Append language code to filenames | `true` |
 
 ### Programmatic Usage
@@ -298,9 +303,9 @@ Built with ❤️ for the Flutter community
 
 ## 📞 Support
 
-- 🐛 [Report Issues](https://github.com/YOUR_USERNAME/smart_arb_translator/issues)
-- 💡 [Feature Requests](https://github.com/YOUR_USERNAME/smart_arb_translator/issues)
-- 📖 [Documentation](https://github.com/YOUR_USERNAME/smart_arb_translator#readme)
+- 🐛 [Report Issues](https://github.com/FredrikBorgstrom/smart_arb_translator/issues)
+- 💡 [Feature Requests](https://github.com/FredrikBorgstrom/smart_arb_translator/issues)
+- 📖 [Documentation](https://github.com/FredrikBorgstrom/smart_arb_translator#readme)
 
 ---
 

@@ -34,7 +34,7 @@ void main(List<String> args) async {
   final sourceArb = result[ArbTranslatorArgumentParser.sourceArb] as String?;
   final apiKeyFile = FileOperations.createFileRef(result[ArbTranslatorArgumentParser.apiKey] as String);
   String outputFileName = result[ArbTranslatorArgumentParser.outputFileName] as String;
-  if (outputFileName == 'arb_translator_') {
+  if (outputFileName == 'smart_arb_translator_') {
     outputFileName = '';
   }
   final languageCodes =

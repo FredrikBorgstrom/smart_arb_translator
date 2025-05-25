@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:arb_translator/src/models/arb_document.dart';
 import 'package:path/path.dart' show join;
+import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -100,17 +100,14 @@ void main() {
 
         test('has non empty attributes placeholders', () {
           expect(
-            pageHomeResource.value.attributes?.placeholders?.isNotEmpty ??
-                false,
+            pageHomeResource.value.attributes?.placeholders?.isNotEmpty ?? false,
             isTrue,
           );
         });
 
         test('There exists a key \'count\' inside placholders', () {
           expect(
-            pageHomeResource.value.attributes?.placeholders
-                    ?.containsKey('count') ??
-                false,
+            pageHomeResource.value.attributes?.placeholders?.containsKey('count') ?? false,
             isTrue,
           );
         });
@@ -127,8 +124,8 @@ void main() {
   group('translates test_file', () {
     test('General help', () async {
       final task = await Process.run(
-        'flutter',
-        ['pub', 'run', 'arb_translator:translate', '--help'],
+        'dart',
+        ['run', 'smart_arb_translator:translate', '--help'],
       );
 
       expect(
@@ -145,8 +142,8 @@ void main() {
 
     test('Throw error without arguments', () async {
       final task = await Process.run(
-        'flutter',
-        ['pub', 'run', 'arb_translator:translate'],
+        'dart',
+        ['run', 'smart_arb_translator:translate'],
       );
 
       expect(task.stderr, isNotEmpty);
@@ -155,11 +152,10 @@ void main() {
 
     test('Throw error without api key', () async {
       final task = await Process.run(
-        'flutter',
+        'dart',
         [
-          'pub',
           'run',
-          'arb_translator:translate',
+          'smart_arb_translator:translate',
           '--source_arb',
           '/test_file.arb',
         ],
@@ -170,13 +166,12 @@ void main() {
     });
 
     test('Translates text', () async {
-      // Todo This will need a mock api t
+      // Todo This will need a mock api test
       // final task = await Process.run(
-      //   'flutter',
+      //   'dart',
       //   [
-      //     'pub',
       //     'run',
-      //     'arb_translator:translate',
+      //     'smart_arb_translator:translate',
       //     '--source_arb',
       //     '/test_file.arb',
       //   ],

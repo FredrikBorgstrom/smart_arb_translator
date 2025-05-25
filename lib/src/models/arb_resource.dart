@@ -1,5 +1,5 @@
-import 'package:arb_translator/src/icu_parser.dart';
 import 'package:petitparser/petitparser.dart';
+import 'package:smart_arb_translator/src/icu_parser.dart';
 
 import 'arb_attributes.dart';
 
@@ -38,10 +38,7 @@ class ArbResource {
   }
 
   Map<String, dynamic> toJson() {
-    return <String, dynamic>{
-      id: text,
-      if (attributes != null) attributeId: attributes!.toJson()
-    };
+    return <String, dynamic>{id: text, if (attributes != null) attributeId: attributes!.toJson()};
   }
 
   ArbResource copyWith({
