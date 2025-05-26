@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 import 'package:smart_arb_translator/src/arb_processor.dart';
+import 'package:smart_arb_translator/src/dart_code_generator.dart';
 import 'package:smart_arb_translator/src/file_operations.dart';
 import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/models/arb_resource.dart';
@@ -14,17 +15,21 @@ class SingleFileProcessor {
     List<String> languageCodes,
     String apiKey,
     String? outputDirectory,
-    String outputFileName,
-  ) async {
+    String outputFileName, {
+    bool generateDart = false,
+    String? dartClassName,
+    String dartOutputDir = 'lib/generated',
+    String dartMainLocale = 'en',
+    bool autoApprove = false,
+    String? l10nMethod,
+  }) async {
+    dartClassName ??= (l10nMethod == 'gen-l10n') ? 'AppLocalizations' : 'S';
     final arbFile = FileOperations.createFileRef(sourceArb);
-    final src = arbFile.readAsStringSync();
-    final arbDocument = ArbDocument.decode(src);
-
-    outputDirectory ??= arbFile.path.substring(0, arbFile.path.lastIndexOf('/') + 1);
+    final workingOutputDirectory = outputDirectory ?? arbFile.path.substring(0, arbFile.path.lastIndexOf('/') + 1);
 
     // Check for existing cached source file for change detection
     final sourceFileBaseName = path.basename(arbFile.path);
-    final cachedSourcePath = path.join(outputDirectory, sourceFileBaseName);
+    final cachedSourcePath = path.join(workingOutputDirectory, sourceFileBaseName);
 
     ArbDocument? previousSourceDocument;
     if (File(cachedSourcePath).existsSync()) {
@@ -57,14 +62,14 @@ class SingleFileProcessor {
           ? '${sourceFileNameWithoutExt}_$languageCode$sourceFileExt'
           : outputFileName.endsWith('.arb')
               ? '${outputFileName.substring(0, outputFileName.length - 4)}_$languageCode.arb'
-              : '${outputFileName}$languageCode.arb';
+              : '$outputFileName$languageCode.arb';
 
       // Use the smart change detection processing
       await processSingleFileWithChanges(
         cachedSourcePath,
         [languageCode],
         apiKey,
-        outputDirectory,
+        workingOutputDirectory,
         finalOutputFileName,
         previousSourceDocument,
         statistics,
@@ -73,6 +78,56 @@ class SingleFileProcessor {
 
     // Print translation statistics
     statistics.printSummary();
+
+    // Generate Dart code if requested
+    if (generateDart) {
+      print('\n🔧 Starting Dart code generation...');
+
+      // For single file processing, we need to create a temporary directory structure
+      // that intl_utils can work with
+      final tempL10nDir = path.join(workingOutputDirectory, 'temp_l10n');
+      await Directory(tempL10nDir).create(recursive: true);
+
+      // Copy the generated files to the temp directory with intl_ prefix
+      for (final languageCode in languageCodes) {
+        final sourceFile = path.join(workingOutputDirectory, '${sourceFileNameWithoutExt}_$languageCode$sourceFileExt');
+        final targetFile = path.join(tempL10nDir, 'intl_$languageCode.arb');
+
+        if (File(sourceFile).existsSync()) {
+          await File(sourceFile).copy(targetFile);
+        }
+      }
+
+      // Also copy the source file as the main locale
+      final mainLocaleFile = path.join(tempL10nDir, 'intl_$dartMainLocale.arb');
+      if (!File(mainLocaleFile).existsSync()) {
+        await arbFile.copy(mainLocaleFile);
+      }
+
+      // Validate ARB files exist
+      final isValid = await DartCodeGenerator.validateArbFiles(
+        arbDirectory: tempL10nDir,
+        languageCodes: languageCodes,
+        mainLocale: dartMainLocale,
+      );
+
+      if (isValid) {
+        await DartCodeGenerator.generateDartCode(
+          arbDirectory: tempL10nDir,
+          outputDirectory: dartOutputDir,
+          className: dartClassName,
+          mainLocale: dartMainLocale,
+          languageCodes: languageCodes,
+          autoApprove: autoApprove,
+          l10nMethod: l10nMethod,
+        );
+
+        // Clean up temporary directory
+        await Directory(tempL10nDir).delete(recursive: true);
+      } else {
+        print('⚠️  Skipping Dart code generation due to validation errors');
+      }
+    }
   }
 
   static Future<void> processSingleFileWithChanges(

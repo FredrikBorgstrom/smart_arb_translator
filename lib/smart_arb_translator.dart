@@ -6,17 +6,19 @@
 /// - Modular architecture for better maintainability
 /// - Support for both single files and directory processing
 /// - Automatic merging to l10n directory structure
+/// - Integrated Dart code generation using intl_utils
 ///
 /// Usage:
 /// ```bash
 /// dart pub global activate smart_arb_translator
-/// smart_arb_translator --source_dir lib/l10n --api_key path/to/api_key.txt --language_codes es,fr,de
+/// smart_arb_translator --source_dir lib/l10n --api_key path/to/api_key.txt --language_codes es,fr,de --generate_dart
 /// ```
 library smart_arb_translator;
 
 export 'src/arb_processor.dart';
 export 'src/argument_parser.dart';
 export 'src/console_utils.dart';
+export 'src/dart_code_generator.dart';
 export 'src/directory_processor.dart';
 export 'src/file_operations.dart';
 export 'src/icu_parser.dart';

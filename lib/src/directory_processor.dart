@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:arb_merge/arb_merge.dart';
 import 'package:console/console.dart';
 import 'package:path/path.dart' as path;
+import 'package:smart_arb_translator/src/dart_code_generator.dart';
 import 'package:smart_arb_translator/src/file_operations.dart' as translator_file_ops;
 import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/single_file_processor.dart';
@@ -15,8 +16,16 @@ class DirectoryProcessor {
     String apiKey,
     String? cachePath,
     String outputFileName,
-    String? l10nDirectory,
-  ) async {
+    String? l10nDirectory, {
+    bool generateDart = false,
+    String? dartClassName,
+    String dartOutputDir = 'lib/generated',
+    String dartMainLocale = 'en',
+    bool autoApprove = false,
+    String? l10nMethod,
+  }) async {
+    dartClassName ??= (l10nMethod == 'gen-l10n') ? 'AppLocalizations' : 'S';
+
     Directory sourceDir = Directory(sourcePath);
     if (!sourceDir.existsSync()) {
       _setBrightRed();
@@ -60,7 +69,7 @@ class DirectoryProcessor {
 
     // Update sourceDir to point to the copied directory
     sourceDir = copiedSourceDir;
-    sourcePath = copiedSourceDir.path;
+    final workingSourcePath = copiedSourceDir.path;
 
     // Find all ARB files recursively
     final arbFiles = await translator_file_ops.FileOperations.findArbFiles(sourceDir);
@@ -87,7 +96,7 @@ class DirectoryProcessor {
             ? '${fileNameWithoutExt}_$languageCode$fileExt'
             : '${outputFileName}_$languageCode$fileExt';
 
-        final relativePath = path.relative(arbFile.path, from: sourcePath);
+        final relativePath = path.relative(arbFile.path, from: workingSourcePath);
         final previousDocument = previousSourceFiles[relativePath];
 
         await SingleFileProcessor.processSingleFileWithChanges(
@@ -104,6 +113,36 @@ class DirectoryProcessor {
 
     // Merge all language files to l10n directory
     await mergeToL10nDirectory(effectiveOutputPath, effectiveL10nPath, languageCodes);
+
+    // Generate Dart code if requested
+    if (generateDart) {
+      print('\n🔧 Starting Dart code generation...');
+
+      // For Dart code generation, we need to use the correct l10n directory
+      // If l10nDirectory is provided, use it; otherwise use effectiveL10nPath
+      final dartL10nPath = l10nDirectory ?? effectiveL10nPath;
+
+      // Validate ARB files exist
+      final isValid = await DartCodeGenerator.validateArbFiles(
+        arbDirectory: dartL10nPath,
+        languageCodes: languageCodes,
+        mainLocale: dartMainLocale,
+      );
+
+      if (isValid) {
+        await DartCodeGenerator.generateDartCode(
+          arbDirectory: dartL10nPath,
+          outputDirectory: dartOutputDir,
+          className: dartClassName,
+          mainLocale: dartMainLocale,
+          languageCodes: languageCodes,
+          autoApprove: autoApprove,
+          l10nMethod: l10nMethod,
+        );
+      } else {
+        print('⚠️  Skipping Dart code generation due to validation errors');
+      }
+    }
 
     // Print translation statistics
     statistics.printSummary();

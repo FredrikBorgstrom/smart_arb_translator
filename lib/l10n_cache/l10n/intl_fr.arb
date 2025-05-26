@@ -1,0 +1,93 @@
+{
+  "@@last_modified": "2024-01-01T00:00:00.000Z",
+  "@@locale": "fr",
+  "appTitle": "Démo du traducteur Smart ARB",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "@changeLanguage": {
+    "description": "Button text to change language"
+  },
+  "changeLanguage": "Changer de langue",
+  "@currentLanguage": {
+    "description": "Shows the current language",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "currentLanguage": "Langue actuelle : {language}",
+  "dartCodeGen": "Génération de code Dart",
+  "@dartCodeGen": {
+    "description": "Feature: Dart code generation"
+  },
+  "dartCodeGenDesc": "Génère automatiquement du code de localisation Dart de type sécurisé",
+  "@dartCodeGenDesc": {
+    "description": "Description of Dart code generation feature"
+  },
+  "features": "Caractéristiques",
+  "@features": {
+    "description": "Section title for features"
+  },
+  "@flutterIntegration": {
+    "description": "Feature: Flutter integration"
+  },
+  "flutterIntegration": "Intégration Flutter",
+  "flutterIntegrationDesc": "Intégration transparente avec le flux de travail d'internationalisation de Flutter",
+  "@flutterIntegrationDesc": {
+    "description": "Description of Flutter integration feature"
+  },
+  "generatedAt": "Généré à : {timestamp}",
+  "@generatedAt": {
+    "description": "Shows when the translations were generated",
+    "placeholders": {
+      "timestamp": {
+        "type": "DateTime",
+        "format": "yMd"
+      }
+    }
+  },
+  "@greetUser": {
+    "description": "Greets the user by name",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "greetUser": "Bonjour, {name} !",
+  "@itemCount": {
+    "description": "Shows the number of items",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "itemCount": "{count,plural, =0{Aucun article} =1{One item} other{{count} items}}",
+  "smartTranslation": "Traduction intelligente",
+  "@smartTranslation": {
+    "description": "Feature: Smart translation"
+  },
+  "smartTranslationDesc": "Traduit uniquement le contenu nouveau ou modifié, ce qui permet de réduire les coûts d'API",
+  "@smartTranslationDesc": {
+    "description": "Description of smart translation feature"
+  },
+  "specialGreeting": "Bienvenue dans le futur de Flutter i18n !",
+  "@specialGreeting": {
+    "description": "A special greeting message"
+  },
+  "subtitle": "Bénéficiez d'une internationalisation transparente grâce à la génération automatique de code Dart",
+  "@subtitle": {
+    "description": "Subtitle explaining the app's purpose"
+  },
+  "@testCompleted": {
+    "description": "Message shown when translation test is completed"
+  },
+  "testCompleted": "Test de traduction terminé avec succès !",
+  "welcomeMessage": "Bienvenue sur Smart ARB Translator !",
+  "@welcomeMessage": {
+    "description": "Welcome message shown to users"
+  }
+}

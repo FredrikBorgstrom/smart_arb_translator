@@ -1,0 +1,130 @@
+{
+  "@@locale": "ja",
+  "@@last_modified": "2024-01-01T00:00:00.000Z",
+  "generatedAt": "生成日時: {timestamp}",
+  "@generatedAt": {
+    "description": "Shows when the translations were generated",
+    "placeholders": {
+      "timestamp": {
+        "type": "DateTime",
+        "format": "yMd"
+      }
+    }
+  },
+  "testCompleted": "翻訳テストが正常に完了しました。",
+  "@testCompleted": {
+    "description": "Message shown when translation test is completed"
+  },
+  "specialGreeting": "Flutter i18n の未来へようこそ!",
+  "@specialGreeting": {
+    "description": "A special greeting message"
+  },
+  "flutterIntegrationDesc": "Flutterの国際化ワークフローとのシームレスな統合",
+  "@flutterIntegrationDesc": {
+    "description": "Description of Flutter integration feature"
+  },
+  "flutterIntegration": "Flutter統合",
+  "@flutterIntegration": {
+    "description": "Feature: Flutter integration"
+  },
+  "dartCodeGenDesc": "型安全なDartロケーションコードを自動生成",
+  "@dartCodeGenDesc": {
+    "description": "Description of Dart code generation feature"
+  },
+  "dartCodeGen": "Dartコード生成",
+  "@dartCodeGen": {
+    "description": "Feature: Dart code generation"
+  },
+  "smartTranslationDesc": "新規または変更されたコンテンツのみを翻訳し、API コストを削減します",
+  "@smartTranslationDesc": {
+    "description": "Description of smart translation feature"
+  },
+  "smartTranslation": "スマート翻訳",
+  "@smartTranslation": {
+    "description": "Feature: Smart translation"
+  },
+  "features": "特徴",
+  "@features": {
+    "description": "Section title for features"
+  },
+  "changeLanguage": "言語を変更する",
+  "@changeLanguage": {
+    "description": "Button text to change language"
+  },
+  "currentLanguage": "現在の言語: {language}",
+  "@currentLanguage": {
+    "description": "Shows the current language",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "greetUser": "こんにちは、 {name} ！",
+  "@greetUser": {
+    "description": "Greets the user by name",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "itemCount": "{count,plural, =0{記事はありません} =1{One item} other{{count} items}}",
+  "@itemCount": {
+    "description": "Shows the number of items",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "subtitle": "自動 Dart コード生成によるシームレスな国際化をお楽しみください",
+  "@subtitle": {
+    "description": "Subtitle explaining the app's purpose"
+  },
+  "welcomeMessage": "Smart ARB Translator へようこそ!",
+  "@welcomeMessage": {
+    "description": "Welcome message shown to users"
+  },
+  "appTitle": "スマートARBトランスレータのデモ",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "welcome": "こんにちは",
+  "@welcome": {
+    "description": "Greeting with manual translation"
+  },
+  "pageLoginUsername": "ユーザー名",
+  "pageLoginPassword": "パスワード",
+  "@pageLoginPassword": {},
+  "pageHomeTitle": "ようこそ{firstName}",
+  "@pageHomeTitle": {
+    "description": "Welcome message on the Home screen",
+    "placeholders": {
+      "firstName": {
+        "type": "String"
+      }
+    }
+  },
+  "pageHomeInboxCount": "{count, plural, zero{新しいメッセージはありません} one{You have 1 new message} other{You have {count} new messages}}",
+  "@pageHomeInboxCount": {
+    "description": "New messages count on the Home screen",
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "pageHomeBirthday": "{sex, select, male{彼の誕生日} female{Her birthday} other{Their birthday}}",
+  "@pageHomeBirthday": {
+    "description": "Birthday message on the Home screen",
+    "placeholders": {
+      "sex": {}
+    }
+  },
+  "commonVehicleType": "{vehicleType, select, sedan{それから} cabriolet{Solid roof cabriolet} truck{16 wheel truck} other{Other}}",
+  "@commonVehicleType": {
+    "description": "Vehicle type",
+    "placeholders": {
+      "vehicleType": {}
+    }
+  }
+}

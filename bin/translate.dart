@@ -1,4 +1,4 @@
-library translate;
+library;
 
 import 'dart:convert';
 import 'dart:io';
@@ -35,7 +35,6 @@ void main(List<String> args) async {
       exit(2);
     }
   }
-
   // Validate source ARB file exists if source_arb is provided
   if (sourceArb != null) {
     final sourceArbFile = File(sourceArb);
@@ -59,6 +58,14 @@ void main(List<String> args) async {
   String? l10nDirectory = result[ArbTranslatorArgumentParser.l10nDirectory];
   l10nDirectory ??= path.join('lib', 'l10n');
 
+  // Get Dart code generation parameters
+  final generateDart = result[ArbTranslatorArgumentParser.generateDart] as bool;
+  final dartClassName = result[ArbTranslatorArgumentParser.dartClassName] as String?;
+  final dartOutputDir = result[ArbTranslatorArgumentParser.dartOutputDir] as String;
+  final dartMainLocale = result[ArbTranslatorArgumentParser.dartMainLocale] as String;
+  final autoApprove = result[ArbTranslatorArgumentParser.autoApprove] as bool;
+  final l10nMethod = result[ArbTranslatorArgumentParser.l10nMethod] as String?;
+
   final apiKey = apiKeyFile.readAsStringSync();
 
   if (languageCodes.toSet().length != languageCodes.length) {
@@ -70,14 +77,36 @@ void main(List<String> args) async {
 
   if (sourcePath != null) {
     await DirectoryProcessor.processDirectory(
-        sourcePath, languageCodes, apiKey, cachePath, outputFileName, l10nDirectory);
+      sourcePath,
+      languageCodes,
+      apiKey,
+      cachePath,
+      outputFileName,
+      l10nDirectory,
+      generateDart: generateDart,
+      dartClassName: dartClassName,
+      dartOutputDir: dartOutputDir,
+      dartMainLocale: dartMainLocale,
+      autoApprove: autoApprove,
+      l10nMethod: l10nMethod,
+    );
   } else if (sourceArb != null) {
-    await SingleFileProcessor.processSingleFile(sourceArb, languageCodes, apiKey, cachePath, outputFileName);
+    await SingleFileProcessor.processSingleFile(
+      sourceArb,
+      languageCodes,
+      apiKey,
+      cachePath,
+      outputFileName,
+      generateDart: generateDart,
+      dartClassName: dartClassName,
+      dartOutputDir: dartOutputDir,
+      dartMainLocale: dartMainLocale,
+      autoApprove: autoApprove,
+      l10nMethod: l10nMethod,
+    );
 
     // Create l10n directory and merge files for single file processing
-    if (l10nDirectory != null) {
-      await DirectoryProcessor.mergeToL10nDirectory(cachePath!, l10nDirectory, languageCodes);
-    }
+    await DirectoryProcessor.mergeToL10nDirectory(cachePath, l10nDirectory, languageCodes);
   } else {
     ConsoleUtils.setBrightRed();
     stderr.write('Either --source_arb or --source_dir must be provided.');

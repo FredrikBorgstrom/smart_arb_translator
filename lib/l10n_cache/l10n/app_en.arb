@@ -1,0 +1,99 @@
+{
+  "@@locale": "en",
+  "@@last_modified": "2024-01-01T00:00:00.000Z",
+  "appTitle": "Smart ARB Translator Demo",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "welcomeMessage": "Welcome to Smart ARB Translator!",
+  "@welcomeMessage": {
+    "description": "Welcome message shown to users"
+  },
+  "subtitle": "Experience seamless internationalization with automatic Dart code generation",
+  "@subtitle": {
+    "description": "Subtitle explaining the app's purpose"
+  },
+  "itemCount": "{count,plural, =0{No items} =1{One item} other{{count} items}}",
+  "@itemCount": {
+    "description": "Shows the number of items",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "greetUser": "Hello, {name}!",
+  "@greetUser": {
+    "description": "Greets the user by name",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "currentLanguage": "Current language: {language}",
+  "@currentLanguage": {
+    "description": "Shows the current language",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "changeLanguage": "Change Language",
+  "@changeLanguage": {
+    "description": "Button text to change language"
+  },
+  "features": "Features",
+  "@features": {
+    "description": "Section title for features"
+  },
+  "smartTranslation": "Smart Translation",
+  "@smartTranslation": {
+    "description": "Feature: Smart translation"
+  },
+  "smartTranslationDesc": "Only translates new or changed content, saving API costs",
+  "@smartTranslationDesc": {
+    "description": "Description of smart translation feature"
+  },
+  "dartCodeGen": "Dart Code Generation",
+  "@dartCodeGen": {
+    "description": "Feature: Dart code generation"
+  },
+  "dartCodeGenDesc": "Automatically generates type-safe Dart localization code",
+  "@dartCodeGenDesc": {
+    "description": "Description of Dart code generation feature"
+  },
+  "flutterIntegration": "Flutter Integration",
+  "@flutterIntegration": {
+    "description": "Feature: Flutter integration"
+  },
+  "flutterIntegrationDesc": "Seamless integration with Flutter's internationalization workflow",
+  "@flutterIntegrationDesc": {
+    "description": "Description of Flutter integration feature"
+  },
+  "specialGreeting": "Welcome to the future of Flutter i18n!",
+  "@specialGreeting": {
+    "description": "A special greeting message",
+    "@x-translations": {
+      "es": "¡Bienvenido al futuro de la internacionalización de Flutter!",
+      "fr": "Bienvenue dans l'avenir de l'i18n Flutter!",
+      "de": "Willkommen in der Zukunft der Flutter-Internationalisierung!",
+      "ja": "Flutter i18nの未来へようこそ！"
+    }
+  },
+  "testCompleted": "Translation test completed successfully!",
+  "@testCompleted": {
+    "description": "Message shown when translation test is completed"
+  },
+  "generatedAt": "Generated at: {timestamp}",
+  "@generatedAt": {
+    "description": "Shows when the translations were generated",
+    "placeholders": {
+      "timestamp": {
+        "type": "DateTime",
+        "format": "yMd"
+      }
+    }
+  }
+} 

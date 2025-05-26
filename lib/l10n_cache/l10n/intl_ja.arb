@@ -1,0 +1,93 @@
+{
+  "@@last_modified": "2024-01-01T00:00:00.000Z",
+  "@@locale": "ja",
+  "appTitle": "スマートARBトランスレータのデモ",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "@changeLanguage": {
+    "description": "Button text to change language"
+  },
+  "changeLanguage": "言語を変更",
+  "@currentLanguage": {
+    "description": "Shows the current language",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "currentLanguage": "現在の言語: {language}",
+  "dartCodeGen": "Dartコード生成",
+  "@dartCodeGen": {
+    "description": "Feature: Dart code generation"
+  },
+  "dartCodeGenDesc": "型安全なDartローカリゼーションコードを自動生成します",
+  "@dartCodeGenDesc": {
+    "description": "Description of Dart code generation feature"
+  },
+  "features": "特徴",
+  "@features": {
+    "description": "Section title for features"
+  },
+  "@flutterIntegration": {
+    "description": "Feature: Flutter integration"
+  },
+  "flutterIntegration": "Flutter統合",
+  "flutterIntegrationDesc": "Flutterの国際化ワークフローとのシームレスな統合",
+  "@flutterIntegrationDesc": {
+    "description": "Description of Flutter integration feature"
+  },
+  "generatedAt": "生成日時: {timestamp}",
+  "@generatedAt": {
+    "description": "Shows when the translations were generated",
+    "placeholders": {
+      "timestamp": {
+        "type": "DateTime",
+        "format": "yMd"
+      }
+    }
+  },
+  "@greetUser": {
+    "description": "Greets the user by name",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "greetUser": "こんにちは、 {name} ！",
+  "@itemCount": {
+    "description": "Shows the number of items",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "itemCount": "{count,plural, =0{アイテムなし} =1{One item} other{{count} items}}",
+  "smartTranslation": "スマート翻訳",
+  "@smartTranslation": {
+    "description": "Feature: Smart translation"
+  },
+  "smartTranslationDesc": "新規または変更されたコンテンツのみを翻訳し、API コストを節約します",
+  "@smartTranslationDesc": {
+    "description": "Description of smart translation feature"
+  },
+  "specialGreeting": "Flutter i18n の未来へようこそ!",
+  "@specialGreeting": {
+    "description": "A special greeting message"
+  },
+  "subtitle": "自動 Dart コード生成によるシームレスな国際化を体験",
+  "@subtitle": {
+    "description": "Subtitle explaining the app's purpose"
+  },
+  "@testCompleted": {
+    "description": "Message shown when translation test is completed"
+  },
+  "testCompleted": "翻訳テストが正常に完了しました。",
+  "welcomeMessage": "Smart ARB Translator へようこそ!",
+  "@welcomeMessage": {
+    "description": "Welcome message shown to users"
+  }
+}

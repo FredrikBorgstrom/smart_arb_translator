@@ -1,0 +1,131 @@
+{
+  "@@last_modified": "2024-01-01T00:00:00.000Z",
+  "@@locale": "es",
+  "appName": "Demo app",
+  "appTitle": "Demostración del traductor ARB inteligente",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "@changeLanguage": {
+    "description": "Button text to change language"
+  },
+  "changeLanguage": "Cambiar idioma",
+  "commonVehicleType": "{vehicleType, select, sedan{Entonces} cabriolet{Solid roof cabriolet} truck{16 wheel truck} other{Other}}",
+  "@commonVehicleType": {
+    "description": "Vehicle type",
+    "placeholders": {
+      "vehicleType": {}
+    }
+  },
+  "@currentLanguage": {
+    "description": "Shows the current language",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "currentLanguage": "Idioma actual: {language}",
+  "dartCodeGen": "Generación de código Dart",
+  "@dartCodeGen": {
+    "description": "Feature: Dart code generation"
+  },
+  "dartCodeGenDesc": "Generar automáticamente un código de ubicación de Dart seguro para tipos",
+  "@dartCodeGenDesc": {
+    "description": "Description of Dart code generation feature"
+  },
+  "@features": {
+    "description": "Section title for features"
+  },
+  "features": "Características",
+  "flutterIntegration": "Integración de Flutter",
+  "@flutterIntegration": {
+    "description": "Feature: Flutter integration"
+  },
+  "flutterIntegrationDesc": "Integración perfecta con el flujo de trabajo de internacionalización de Flutter",
+  "@flutterIntegrationDesc": {
+    "description": "Description of Flutter integration feature"
+  },
+  "generatedAt": "Generado en: {timestamp}",
+  "@generatedAt": {
+    "description": "Shows when the translations were generated",
+    "placeholders": {
+      "timestamp": {
+        "type": "DateTime",
+        "format": "yMd"
+      }
+    }
+  },
+  "@greetUser": {
+    "description": "Greets the user by name",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "greetUser": "Hola, {name} !",
+  "itemCount": "{count,plural, =0{No hay artículos} =1{One item} other{{count} items}}",
+  "@itemCount": {
+    "description": "Shows the number of items",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pageHomeBirthday": "{sex, select, male{Su cumpleaños} female{Her birthday} other{Their birthday}}",
+  "@pageHomeBirthday": {
+    "description": "Birthday message on the Home screen",
+    "placeholders": {
+      "sex": {}
+    }
+  },
+  "pageHomeInboxCount": "{count, plural, zero{No tienes mensajes nuevos} one{You have 1 new message} other{You have {count} new messages}}",
+  "@pageHomeInboxCount": {
+    "description": "New messages count on the Home screen",
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "@pageHomeTitle": {
+    "description": "Welcome message on the Home screen",
+    "placeholders": {
+      "firstName": {
+        "type": "String"
+      }
+    }
+  },
+  "pageHomeTitle": "Bienvenido {firstName}",
+  "@pageLoginPassword": {},
+  "pageLoginPassword": "Tu contraseña",
+  "pageLoginUsername": "Tu nombre de usuario",
+  "smartTranslation": "Traducción inteligente",
+  "@smartTranslation": {
+    "description": "Feature: Smart translation"
+  },
+  "@smartTranslationDesc": {
+    "description": "Description of smart translation feature"
+  },
+  "smartTranslationDesc": "Traduce solo contenido nuevo o modificado, lo que reduce los costos de API",
+  "@specialGreeting": {
+    "description": "A special greeting message"
+  },
+  "specialGreeting": "¡Bienvenido al futuro de Flutter i18n!",
+  "subtitle": "Disfrute de una internacionalización perfecta con la generación automática de código Dart",
+  "@subtitle": {
+    "description": "Subtitle explaining the app's purpose"
+  },
+  "@testCompleted": {
+    "description": "Message shown when translation test is completed"
+  },
+  "testCompleted": "¡Prueba de traducción completada exitosamente!",
+  "@welcome": {
+    "description": "Greeting with manual translation"
+  },
+  "welcome": "Hola",
+  "welcomeMessage": "¡Bienvenido a Smart ARB Translator!",
+  "@welcomeMessage": {
+    "description": "Welcome message shown to users"
+  }
+}

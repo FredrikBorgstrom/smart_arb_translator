@@ -12,6 +12,12 @@ class ArbTranslatorArgumentParser {
   static const _outputFileName = 'output_file_name';
 
   static const _l10nDirectory = 'l10n_directory';
+  static const _generateDart = 'generate_dart';
+  static const _dartClassName = 'dart_class_name';
+  static const _dartOutputDir = 'dart_output_dir';
+  static const _dartMainLocale = 'dart_main_locale';
+  static const _autoApprove = 'auto_approve';
+  static const _l10nMethod = 'l10n_method';
 
   static ArgParser _initiateParse() {
     final parser = ArgParser();
@@ -42,6 +48,36 @@ class ArbTranslatorArgumentParser {
       ..addOption(
         _l10nDirectory,
         help: 'directory where merged intl_x.arb files will be created. Defaults to parent of source directory + /l10n',
+      )
+      ..addFlag(
+        _generateDart,
+        help: 'generate Dart localization code from ARB files using intl_utils',
+        defaultsTo: true,
+      )
+      ..addOption(
+        _dartClassName,
+        help: 'name for the generated localization class',
+        // defaultsTo: 'S',
+      )
+      ..addOption(
+        _dartOutputDir,
+        help: 'directory for generated Dart localization files',
+        defaultsTo: 'lib/generated',
+      )
+      ..addOption(
+        _dartMainLocale,
+        help: 'main locale for Dart code generation',
+        defaultsTo: 'en',
+      )
+      ..addFlag(
+        _autoApprove,
+        help: 'automatically approve pubspec.yaml modifications without prompting',
+        defaultsTo: false,
+      )
+      ..addOption(
+        _l10nMethod,
+        help: 'localization method to use: "gen-l10n" (Flutter built-in) or "intl_utils" (intl_utils package)',
+        allowed: ['gen-l10n', 'intl_utils'],
       );
 
     return parser;
@@ -84,4 +120,10 @@ class ArbTranslatorArgumentParser {
   static String get outputFileName => _outputFileName;
 
   static String get l10nDirectory => _l10nDirectory;
+  static String get generateDart => _generateDart;
+  static String get dartClassName => _dartClassName;
+  static String get dartOutputDir => _dartOutputDir;
+  static String get dartMainLocale => _dartMainLocale;
+  static String get autoApprove => _autoApprove;
+  static String get l10nMethod => _l10nMethod;
 }

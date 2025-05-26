@@ -1,24 +1,15 @@
 # Smart ARB Translator
 
-[![Pub Version](https://img.shields.io/pub/v/smart_arb_translator.svg)](https://pub.dev/packages/smart_arb_translator)
-[![Pub Points](https://img.shields.io/pub/points/smart_arb_translator)](https://pub.dev/packages/smart_arb_translator/score)
-[![Popularity](https://img.shields.io/pub/popularity/smart_arb_translator)](https://pub.dev/packages/smart_arb_translator/score)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub Stars](https://img.shields.io/github/stars/FredrikBorgstrom/smart_arb_translator?style=social)](https://github.com/FredrikBorgstrom/smart_arb_translator)
-[![GitHub Issues](https://img.shields.io/github/issues/FredrikBorgstrom/smart_arb_translator)](https://github.com/FredrikBorgstrom/smart_arb_translator/issues)
-[![GitHub Last Commit](https://img.shields.io/github/last-commit/FredrikBorgstrom/smart_arb_translator)](https://github.com/FredrikBorgstrom/smart_arb_translator/commits/main)
-
-An intelligent command-line utility for translating ARB (Application Resource Bundle) files using Google Translate API. This package features smart change detection, modular architecture, and seamless integration with Flutter's internationalization workflow.
+An intelligent command-line utility for translating ARB (Application Resource Bundle) files using Google Translate API. This package features smart change detection that only translates messages that have been added or changed. This will keep your translation costs to a minimum. A cost-saving end-to-end solution that translates your messages to Dart classes in the languages of your choice.
 
 ## 🚀 Features
 
 - **Smart Change Detection**: Only translates modified or new content, saving API calls and time
-- **Modular Architecture**: Clean, maintainable codebase with separated concerns
-- **Batch Processing**: Translate multiple files and directories recursively
-- **Automatic Merging**: Seamlessly integrates with Flutter's l10n directory structure
+- **Batch Processing**: Translate entire folders recursively or a single source file
 - **Manual Translation Override**: Support for custom translations via `@x-translations` metadata
-- **Flexible Output**: Customizable file naming and directory structure
-- **Error Handling**: Robust error handling with detailed feedback
+- **🆕 Dart Code Generation**: Generate ready-to-use Dart localization code using intl_utils integration
+- **Stats**: Gives you full statistics on the number of translations made
+
 
 ## 📦 Installation
 
@@ -41,6 +32,49 @@ Then run:
 
 ```bash
 dart pub get
+```
+
+## 🚀 Quick Start
+
+### 1. Get a Google Translate API Key
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Enable the Google Translate API
+4. Create credentials (API Key)
+5. Save your API key to a text file (e.g., `api_key.txt`)
+
+### 2. One-Command Translation + Code Generation
+
+```bash
+# Complete Flutter i18n workflow in one command
+smart_arb_translator \
+  --source_dir lib/l10n \
+  --api_key api_key.txt \
+  --language_codes es,fr,de,ja \
+  --generate_dart \
+  --dart_class_name AppLocalizations
+```
+
+This single command will:
+- ✅ Translate your ARB files to multiple languages
+- ✅ Generate type-safe Dart localization code
+- ✅ Set up everything for Flutter integration
+
+### 3. Use in Your Flutter App
+
+```dart
+import 'lib/generated/l10n.dart';
+
+// In your MaterialApp
+MaterialApp(
+  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  supportedLocales: AppLocalizations.supportedLocales,
+  // ... rest of your app
+)
+
+// In your widgets
+Text(AppLocalizations.of(context).yourTranslationKey)
 ```
 
 ## 🔧 Setup
@@ -102,6 +136,18 @@ smart_arb_translator \
   --output_file_name app
 ```
 
+#### Complete Translation + Dart Code Generation (NEW!)
+
+```bash
+smart_arb_translator \
+  --source_dir lib/l10n \
+  --api_key path/to/api_key.txt \
+  --language_codes es,fr,de,it \
+  --generate_dart \
+  --dart_class_name AppLocalizations \
+  --dart_output_dir lib/generated
+```
+
 ### Command Line Options
 
 | Option | Description | Default |
@@ -113,6 +159,10 @@ smart_arb_translator \
 | `--cache_directory` | Directory for translation cache | `lib/l10n_cache` |
 | `--l10n_directory` | Output directory for merged files | `lib/l10n` |
 | `--output_file_name` | Custom output filename | `intl_` |
+| `--generate_dart` | Generate Dart localization code | `false` |
+| `--dart_class_name` | Name for generated localization class | `S` |
+| `--dart_output_dir` | Directory for generated Dart files | `lib/generated` |
+| `--dart_main_locale` | Main locale for Dart code generation | `en` |
 
 
 ### Programmatic Usage
@@ -135,6 +185,43 @@ void main() async {
 ```
 
 ## 🎨 Advanced Features
+
+### Dart Code Generation Integration
+
+Smart ARB Translator now includes integrated Dart code generation using `intl_utils`, providing a complete end-to-end solution:
+
+#### Benefits:
+- **One Command Solution**: Translate and generate Dart code in a single step
+- **Consistent Configuration**: Same settings for translation and code generation
+- **Automatic Setup**: Handles `pubspec.yaml` configuration automatically
+- **Type Safety**: Generated Dart code provides compile-time safety
+- **IDE Support**: Full autocomplete and refactoring support
+- **Performance**: Optimized for large projects with smart caching
+
+#### Workflow Comparison:
+
+**Before (Multiple Tools):**
+```bash
+# Step 1: Translate ARB files
+smart_arb_translator --source_dir lib/l10n --api_key api_key.txt --language_codes es,fr
+
+# Step 2: Install intl_utils
+dart pub add dev:intl_utils
+
+# Step 3: Configure pubspec.yaml manually
+# Step 4: Generate Dart code
+dart run intl_utils:generate
+```
+
+**After (Integrated Solution):**
+```bash
+# Single command does everything
+smart_arb_translator \
+  --source_dir lib/l10n \
+  --api_key api_key.txt \
+  --language_codes es,fr \
+  --generate_dart
+```
 
 ### Manual Translation Overrides
 
@@ -203,11 +290,48 @@ output-localization-file: app_localizations.dart
 ### 3. Translate and generate
 
 ```bash
-# Translate ARB files
-smart_arb_translator --source_dir lib/l10n --api_key api_key.txt --language_codes es,fr,de
+# Complete workflow: Translate ARB files + Generate Dart code
+smart_arb_translator \
+  --source_dir lib/l10n \
+  --api_key api_key.txt \
+  --language_codes es,fr,de \
+  --generate_dart \
+  --dart_class_name AppLocalizations
 
-# Generate Flutter localizations
+# Alternative: Use Flutter's built-in generator (if you prefer)
 flutter gen-l10n
+```
+
+### 4. Use in your Flutter app
+
+```dart
+import 'package:flutter/material.dart';
+import 'lib/generated/l10n.dart'; // Generated by smart_arb_translator
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: MyHomePage(),
+    );
+  }
+}
+
+class MyHomePage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(AppLocalizations.of(context).appTitle),
+      ),
+      body: Center(
+        child: Text(AppLocalizations.of(context).welcomeMessage),
+      ),
+    );
+  }
+}
 ```
 
 ## 🛠️ Development
@@ -309,3 +433,11 @@ Built with ❤️ for the Flutter community
 ---
 
 Made with ❤️ for the Flutter community
+
+[![Pub Version](https://img.shields.io/pub/v/smart_arb_translator.svg)](https://pub.dev/packages/smart_arb_translator)
+[![Pub Points](https://img.shields.io/pub/points/smart_arb_translator)](https://pub.dev/packages/smart_arb_translator/score)
+[![Popularity](https://img.shields.io/pub/popularity/smart_arb_translator)](https://pub.dev/packages/smart_arb_translator/score)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub Stars](https://img.shields.io/github/stars/FredrikBorgstrom/smart_arb_translator?style=social)](https://github.com/FredrikBorgstrom/smart_arb_translator)
+[![GitHub Issues](https://img.shields.io/github/issues/FredrikBorgstrom/smart_arb_translator)](https://github.com/FredrikBorgstrom/smart_arb_translator/issues)
+[![GitHub Last Commit](https://img.shields.io/github/last-commit/FredrikBorgstrom/smart_arb_translator)](https://github.com/FredrikBorgstrom/smart_arb_translator/commits/main)

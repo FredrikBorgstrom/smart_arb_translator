@@ -1,0 +1,41 @@
+{
+  "@@locale": "sv",
+  "appName": "Demo app",
+  "commonVehicleType": "{vehicleType, select, sedan{Sedan} cabriolet{Cabriolet i massiv tak} truck{16 hjul lastbil} other{Övrig}}",
+  "@commonVehicleType": {
+    "description": "Vehicle type",
+    "placeholders": {
+      "vehicleType": {}
+    }
+  },
+  "pageHomeBirthday": "{sex, select, male{Hans födelsedag} female{Hennes födelsedag} other{Deras födelsedag}}",
+  "@pageHomeBirthday": {
+    "description": "Birthday message on the Home screen",
+    "placeholders": {
+      "sex": {}
+    }
+  },
+  "pageHomeInboxCount": "{count, plural, zero{Du har inga nya meddelanden} one{Du har 1 nytt meddelande} other{Du har {count} nya meddelanden}}",
+  "@pageHomeInboxCount": {
+    "description": "New messages count on the Home screen",
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "pageHomeTitle": "Välkommen {firstName}",
+  "@pageHomeTitle": {
+    "description": "Welcome message on the Home screen",
+    "placeholders": {
+      "firstName": {
+        "type": "String"
+      }
+    }
+  },
+  "pageLoginPassword": "Ditt lösenord",
+  "@pageLoginPassword": {},
+  "pageLoginUsername": "Ditt användarnamn",
+  "welcome": "Haj på daj!",
+  "@welcome": {
+    "description": "Greeting with manual translation"
+  }
+}

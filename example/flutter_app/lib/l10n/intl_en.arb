@@ -1,0 +1,141 @@
+{
+  "@@last_modified": "2024-01-01T00:00:00.000Z",
+  "@@locale": "en",
+  "appName": "Demo app",
+  "appTitle": "Smart ARB Translator Demo",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "changeLanguage": "Change Language",
+  "@changeLanguage": {
+    "description": "Button text to change language"
+  },
+  "@commonVehicleType": {
+    "description": "Vehicle type",
+    "placeholders": {
+      "vehicleType": {}
+    }
+  },
+  "commonVehicleType": "{vehicleType, select, sedan{Sedan} cabriolet{Solid roof cabriolet} truck{16 wheel truck} other{Other}}",
+  "currentLanguage": "Current language: {language}",
+  "@currentLanguage": {
+    "description": "Shows the current language",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "dartCodeGen": "Dart Code Generation",
+  "@dartCodeGen": {
+    "description": "Feature: Dart code generation"
+  },
+  "@dartCodeGenDesc": {
+    "description": "Description of Dart code generation feature"
+  },
+  "dartCodeGenDesc": "Automatically generates type-safe Dart localization code",
+  "features": "Features",
+  "@features": {
+    "description": "Section title for features"
+  },
+  "flutterIntegration": "Flutter Integration",
+  "@flutterIntegration": {
+    "description": "Feature: Flutter integration"
+  },
+  "flutterIntegrationDesc": "Seamless integration with Flutter's internationalization workflow",
+  "@flutterIntegrationDesc": {
+    "description": "Description of Flutter integration feature"
+  },
+  "@generatedAt": {
+    "description": "Shows when the translations were generated",
+    "placeholders": {
+      "timestamp": {
+        "type": "DateTime",
+        "format": "yMd"
+      }
+    }
+  },
+  "generatedAt": "Generated at: {timestamp}",
+  "greetUser": "Hello, {name}!",
+  "@greetUser": {
+    "description": "Greets the user by name",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "itemCount": "{count,plural, =0{No items} =1{One item} other{{count} items}}",
+  "@itemCount": {
+    "description": "Shows the number of items",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@pageHomeBirthday": {
+    "description": "Birthday message on the Home screen",
+    "placeholders": {
+      "sex": {}
+    }
+  },
+  "pageHomeBirthday": "{sex, select, male{His birthday} female{Her birthday} other{Their birthday}}",
+  "@pageHomeInboxCount": {
+    "description": "New messages count on the Home screen",
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "pageHomeInboxCount": "{count, plural, zero{You have no new messages} one{You have 1 new message} other{You have {count} new messages}}",
+  "pageHomeTitle": "Welcome {firstName}",
+  "@pageHomeTitle": {
+    "description": "Welcome message on the Home screen",
+    "placeholders": {
+      "firstName": {
+        "type": "String"
+      }
+    }
+  },
+  "pageLoginPassword": "Your password",
+  "@pageLoginPassword": {},
+  "pageLoginUsername": "Your username",
+  "@smartTranslation": {
+    "description": "Feature: Smart translation"
+  },
+  "smartTranslation": "Smart Translation",
+  "@smartTranslationDesc": {
+    "description": "Description of smart translation feature"
+  },
+  "smartTranslationDesc": "Only translates new or changed content, saving API costs",
+  "@specialGreeting": {
+    "description": "A special greeting message",
+    "@x-translations": {
+      "es": "¡Bienvenido al futuro de la internacionalización de Flutter!",
+      "fr": "Bienvenue dans l'avenir de l'i18n Flutter!",
+      "de": "Willkommen in der Zukunft der Flutter-Internationalisierung!",
+      "ja": "Flutter i18nの未来へようこそ！"
+    }
+  },
+  "specialGreeting": "Welcome to the future of Flutter i18n!",
+  "@subtitle": {
+    "description": "Subtitle explaining the app's purpose"
+  },
+  "subtitle": "Experience seamless internationalization with automatic Dart code generation",
+  "@testCompleted": {
+    "description": "Message shown when translation test is completed"
+  },
+  "testCompleted": "Translation test completed successfully!",
+  "@welcome": {
+    "description": "Greeting with manual translation",
+    "x-translations": {
+      "sv": "Haj på daj!",
+      "fr": "Bien venue, mec!"
+    }
+  },
+  "welcome": "Hello",
+  "@welcomeMessage": {
+    "description": "Welcome message shown to users"
+  },
+  "welcomeMessage": "Welcome to Smart ARB Translator!"
+}

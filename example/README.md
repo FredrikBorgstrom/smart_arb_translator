@@ -1,153 +1,303 @@
 # Smart ARB Translator Examples
 
-This directory contains examples of how to use Smart ARB Translator in different scenarios.
+This directory contains comprehensive examples demonstrating Smart ARB Translator's complete workflow, including the new **Dart code generation** feature.
+
+## 🆕 **NEW: Complete Flutter Integration**
+
+Smart ARB Translator now provides end-to-end Flutter internationalization:
+**Translation → ARB Files → Dart Code → Ready-to-use Flutter App**
 
 ## 📁 Directory Structure
 
 ```
 example/
 ├── README.md                    # This file
-├── basic_usage.dart            # Basic programmatic usage
-├── advanced_usage.dart         # Advanced features example
+├── flutter_app/                # Complete Flutter example app
+│   ├── lib/
+│   │   ├── main.dart           # Flutter app using generated localizations
+│   │   ├── l10n/               # Source ARB files
+│   │   │   └── app_en.arb
+│   │   └── generated/          # Generated Dart code (auto-created)
+│   ├── pubspec.yaml
+│   └── api_key.txt             # Your Google API key
 ├── sample_arb_files/           # Sample ARB files for testing
 │   ├── app_en.arb
 │   ├── common_en.arb
 │   └── features/
 │       ├── auth_en.arb
 │       └── profile_en.arb
-└── scripts/
-    ├── translate_single.sh     # Single file translation script
-    ├── translate_directory.sh  # Directory translation script
-    └── flutter_workflow.sh     # Complete Flutter workflow
+├── scripts/
+│   ├── complete_workflow.sh    # NEW: Translation + Dart generation
+│   ├── translate_only.sh       # Translation only
+│   └── test_with_api.sh        # Test with provided API key
+└── programmatic/
+    ├── basic_usage.dart
+    └── advanced_usage.dart
 ```
 
-## 🚀 Quick Start Examples
+## 🚀 **Quick Start: Complete Workflow**
 
-### 1. Command Line Usage
+### **Option 1: One Command Solution (NEW!)**
+```bash
+# Complete workflow: Translate + Generate Dart code
+smart_arb_translator \
+  --source_dir example/flutter_app/lib/l10n \
+  --api_key example/flutter_app/api_key.txt \
+  --language_codes es,fr,de,ja \
+  --generate_dart \
+  --dart_class_name AppLocalizations \
+  --dart_output_dir example/flutter_app/lib/generated
+```
 
-#### Translate a Single File
+### **Option 2: Step by Step**
+```bash
+# Step 1: Translate ARB files
+smart_arb_translator \
+  --source_dir example/flutter_app/lib/l10n \
+  --api_key example/flutter_app/api_key.txt \
+  --language_codes es,fr,de,ja
+
+# Step 2: Generate Dart code
+smart_arb_translator \
+  --source_dir example/flutter_app/lib/l10n \
+  --api_key example/flutter_app/api_key.txt \
+  --language_codes es,fr,de,ja \
+  --generate_dart
+```
+
+## 🎯 **Live Example: Flutter App**
+
+### **1. Setup the Example App**
+```bash
+cd example/flutter_app
+
+# Add your API key
+echo "ENTER_API_KEY_HERE" > api_key.txt
+
+# Install dependencies
+flutter pub get
+```
+
+### **2. Run Complete Translation + Code Generation**
 ```bash
 smart_arb_translator \
-  --source_arb example/sample_arb_files/app_en.arb \
-  --api_key path/to/your/api_key.txt \
-  --language_codes es,fr,de \
-  --output_file_name app
+  --source_dir lib/l10n \
+  --api_key api_key.txt \
+  --language_codes es,fr,de,ja \
+  --generate_dart \
+  --dart_class_name AppLocalizations
 ```
 
-#### Translate a Directory
+### **3. Run the Flutter App**
 ```bash
-smart_arb_translator \
-  --source_dir example/sample_arb_files \
-  --api_key path/to/your/api_key.txt \
-  --language_codes es,fr,de,it \
-  --cache_directory example/output/cache \
-  --l10n_directory example/output/l10n
+flutter run
 ```
 
-### 2. Programmatic Usage
+The app will now support multiple languages with type-safe, auto-generated localization code!
 
-See `basic_usage.dart` and `advanced_usage.dart` for detailed examples.
+## 📋 **Sample ARB Files**
 
-### 3. Flutter Integration
-
-See `scripts/flutter_workflow.sh` for a complete Flutter internationalization workflow.
-
-## 📋 Sample ARB Files
-
-The `sample_arb_files/` directory contains realistic ARB files that you can use to test the translation functionality:
-
-- `app_en.arb`: Main application strings
-- `common_en.arb`: Common UI elements
-- `features/auth_en.arb`: Authentication-related strings
-- `features/profile_en.arb`: User profile strings
-
-## 🔧 Setup Instructions
-
-1. **Get a Google Translate API Key**:
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Enable the Cloud Translation API
-   - Create an API key
-   - Save it to a text file
-
-2. **Install Smart ARB Translator**:
-   ```bash
-   dart pub global activate smart_arb_translator
-   ```
-
-3. **Run the Examples**:
-   ```bash
-   # Navigate to the example directory
-   cd example
-   
-   # Run basic programmatic example
-   dart run basic_usage.dart
-   
-   # Run advanced example
-   dart run advanced_usage.dart
-   
-   # Run shell scripts (make them executable first)
-   chmod +x scripts/*.sh
-   ./scripts/translate_single.sh
-   ```
-
-## 📚 Learning Path
-
-1. **Start with**: `scripts/translate_single.sh` - Simple single file translation
-2. **Progress to**: `scripts/translate_directory.sh` - Batch processing
-3. **Explore**: `basic_usage.dart` - Programmatic API
-4. **Master**: `advanced_usage.dart` - Advanced features
-5. **Integrate**: `scripts/flutter_workflow.sh` - Complete Flutter workflow
-
-## 🎯 Common Use Cases
-
-### Use Case 1: Flutter App Internationalization
-```bash
-# 1. Translate your ARB files
-smart_arb_translator --source_dir lib/l10n --api_key api_key.txt --language_codes es,fr,de
-
-# 2. Generate Flutter localizations
-flutter gen-l10n
-
-# 3. Use in your Flutter app
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
-```
-
-### Use Case 2: Incremental Updates
-```bash
-# Only translates new or changed keys (saves API costs)
-smart_arb_translator --source_dir lib/l10n --api_key api_key.txt --language_codes es,fr
-```
-
-### Use Case 3: Custom Translation Overrides
-Add to your ARB file:
+### **Main App Strings** (`app_en.arb`)
 ```json
 {
-  "greeting": "Hello",
-  "@greeting": {
-    "description": "A greeting message",
-    "@x-translations": {
-      "es": "¡Hola!",
-      "fr": "Salut!"
+  "@@locale": "en",
+  "@@last_modified": "2024-01-01T00:00:00.000Z",
+  "appTitle": "Smart ARB Translator Demo",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "welcomeMessage": "Welcome to Smart ARB Translator!",
+  "@welcomeMessage": {
+    "description": "Welcome message shown to users"
+  },
+  "itemCount": "{count,plural, =0{No items} =1{One item} other{{count} items}}",
+  "@itemCount": {
+    "description": "Shows the number of items",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "greetUser": "Hello, {name}!",
+  "@greetUser": {
+    "description": "Greets the user by name",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
     }
   }
 }
 ```
 
-## 🐛 Troubleshooting
+## 🔧 **Advanced Features**
 
-If you encounter issues:
+### **Manual Translation Overrides**
+```json
+{
+  "specialGreeting": "Hello there!",
+  "@specialGreeting": {
+    "description": "A special greeting",
+    "@x-translations": {
+      "es": "¡Hola amigo!",
+      "fr": "Salut mon ami!",
+      "de": "Hallo mein Freund!"
+    }
+  }
+}
+```
 
-1. **Check API Key**: Ensure your API key file exists and contains a valid key
-2. **Verify Permissions**: Make sure you have read/write access to source and output directories
-3. **Validate ARB Files**: Ensure your ARB files are valid JSON
-4. **Check Network**: Verify internet connection and Google Cloud API quotas
+### **Smart Change Detection**
+```bash
+# Only translates new or modified keys (saves API costs!)
+smart_arb_translator \
+  --source_dir lib/l10n \
+  --api_key api_key.txt \
+  --language_codes es,fr \
+  --generate_dart
+```
 
-## 📞 Getting Help
+### **Custom Configuration**
+```bash
+smart_arb_translator \
+  --source_dir lib/l10n \
+  --api_key api_key.txt \
+  --language_codes es,fr,de,ja,ko,zh \
+  --generate_dart \
+  --dart_class_name MyAppLocalizations \
+  --dart_output_dir lib/i18n \
+  --dart_main_locale en \
+  --cache_directory .translation_cache \
+  --l10n_directory lib/l10n_merged
+```
+
+## 📱 **Flutter Integration Example**
+
+### **Generated Usage** (After running with `--generate_dart`)
+```dart
+import 'package:flutter/material.dart';
+import 'lib/generated/l10n.dart'; // Auto-generated!
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Smart ARB Translator Demo',
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: MyHomePage(),
+    );
+  }
+}
+
+class MyHomePage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.appTitle), // Type-safe!
+      ),
+      body: Column(
+        children: [
+          Text(l10n.welcomeMessage),
+          Text(l10n.greetUser('John')), // With parameters!
+          Text(l10n.itemCount(5)), // Plural support!
+        ],
+      ),
+    );
+  }
+}
+```
+
+## 🧪 **Testing Scripts**
+
+### **Test with Provided API Key**
+```bash
+# Use the provided test API key
+./scripts/test_with_api.sh
+```
+
+### **Complete Workflow Test**
+```bash
+# Test the entire translation + code generation workflow
+./scripts/complete_workflow.sh
+```
+
+## 📊 **Performance Benefits**
+
+| Feature | Before | After (Smart ARB Translator) |
+|---------|--------|-------------------------------|
+| **Setup Time** | 30+ minutes | 2 minutes |
+| **Translation Cost** | Full retranslation | Only changed content |
+| **Code Generation** | Manual setup | Automatic |
+| **Type Safety** | Runtime errors | Compile-time safety |
+| **Maintenance** | Multiple tools | Single command |
+
+## 🌍 **Supported Languages**
+
+Test with multiple languages:
+```bash
+smart_arb_translator \
+  --source_dir lib/l10n \
+  --api_key api_key.txt \
+  --language_codes es,fr,de,it,pt,ru,ja,ko,zh,ar,hi,th \
+  --generate_dart
+```
+
+## 🐛 **Troubleshooting**
+
+### **Common Issues & Solutions**
+
+1. **API Key Issues**
+   ```bash
+   # Verify API key
+   echo "ENTER_API_KEY_HERE" > api_key.txt
+   ```
+
+2. **Permission Errors**
+   ```bash
+   # Fix permissions
+   chmod -R 755 lib/
+   ```
+
+3. **Dart Generation Fails**
+   ```bash
+   # Ensure pubspec.yaml exists
+   flutter create . --project-name my_app
+   ```
+
+4. **Missing Dependencies**
+   ```bash
+   # Install required dependencies
+   dart pub add intl
+   flutter pub get
+   ```
+
+## 📚 **Learning Path**
+
+1. **🟢 Beginner**: Run `./scripts/test_with_api.sh`
+2. **🟡 Intermediate**: Modify `example/flutter_app/lib/l10n/app_en.arb`
+3. **🟠 Advanced**: Create custom ARB structure
+4. **🔴 Expert**: Integrate into existing Flutter project
+
+## 🎉 **What's New in v1.0.0**
+
+- ✅ **Dart Code Generation**: Complete intl_utils integration
+- ✅ **One Command Solution**: Translation + code generation
+- ✅ **Type Safety**: Compile-time localization safety
+- ✅ **Smart Caching**: Only translate what changed
+- ✅ **Flutter Ready**: Drop-in Flutter integration
+
+## 📞 **Getting Help**
 
 - 📖 [Main Documentation](../README.md)
-- 🐛 [Report Issues](https://github.com/YOUR_USERNAME/smart_arb_translator/issues)
-- 💡 [Feature Requests](https://github.com/YOUR_USERNAME/smart_arb_translator/issues)
+- 🐛 [Report Issues](https://github.com/FredrikBorgstrom/smart_arb_translator/issues)
+- 💡 [Feature Requests](https://github.com/FredrikBorgstrom/smart_arb_translator/issues)
+- 🎯 [Live Examples](./flutter_app/)
 
 ---
 
-Happy translating! 🌍✨ 
+**Ready to revolutionize your Flutter i18n workflow?** 🚀✨ 

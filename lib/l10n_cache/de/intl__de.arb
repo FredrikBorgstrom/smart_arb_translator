@@ -1,0 +1,130 @@
+{
+  "@@locale": "de",
+  "@@last_modified": "2024-01-01T00:00:00.000Z",
+  "generatedAt": "Generiert am: {timestamp}",
+  "@generatedAt": {
+    "description": "Shows when the translations were generated",
+    "placeholders": {
+      "timestamp": {
+        "type": "DateTime",
+        "format": "yMd"
+      }
+    }
+  },
+  "testCompleted": "Übersetzungstest erfolgreich abgeschlossen!",
+  "@testCompleted": {
+    "description": "Message shown when translation test is completed"
+  },
+  "specialGreeting": "Willkommen in der Zukunft von Flutter i18n!",
+  "@specialGreeting": {
+    "description": "A special greeting message"
+  },
+  "flutterIntegrationDesc": "Nahtlose Integration in den Internationalisierungs-Workflow von Flutter",
+  "@flutterIntegrationDesc": {
+    "description": "Description of Flutter integration feature"
+  },
+  "flutterIntegration": "Flutter-Integration",
+  "@flutterIntegration": {
+    "description": "Feature: Flutter integration"
+  },
+  "dartCodeGenDesc": "Automatisch typsicheren Dart-Standortcode generieren",
+  "@dartCodeGenDesc": {
+    "description": "Description of Dart code generation feature"
+  },
+  "dartCodeGen": "Dart-Codegenerierung",
+  "@dartCodeGen": {
+    "description": "Feature: Dart code generation"
+  },
+  "smartTranslationDesc": "Übersetzt nur neue oder geänderte Inhalte und reduziert so die API-Kosten",
+  "@smartTranslationDesc": {
+    "description": "Description of smart translation feature"
+  },
+  "smartTranslation": "Intelligente Übersetzung",
+  "@smartTranslation": {
+    "description": "Feature: Smart translation"
+  },
+  "features": "Merkmale",
+  "@features": {
+    "description": "Section title for features"
+  },
+  "changeLanguage": "Sprache ändern",
+  "@changeLanguage": {
+    "description": "Button text to change language"
+  },
+  "currentLanguage": "Aktuelle Sprache: {language}",
+  "@currentLanguage": {
+    "description": "Shows the current language",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "greetUser": "Hallo, {name} !",
+  "@greetUser": {
+    "description": "Greets the user by name",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "itemCount": "{count,plural, =0{Keine Artikel} =1{One item} other{{count} items}}",
+  "@itemCount": {
+    "description": "Shows the number of items",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "subtitle": "Genießen Sie nahtlose Internationalisierung mit der automatischen Dart-Codegenerierung",
+  "@subtitle": {
+    "description": "Subtitle explaining the app's purpose"
+  },
+  "welcomeMessage": "Willkommen beim Smart ARB Translator!",
+  "@welcomeMessage": {
+    "description": "Welcome message shown to users"
+  },
+  "appTitle": "Demo des Smart ARB-Übersetzers",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "welcome": "Hallo",
+  "@welcome": {
+    "description": "Greeting with manual translation"
+  },
+  "pageLoginUsername": "Ihr Benutzername",
+  "pageLoginPassword": "Ihr Passwort",
+  "@pageLoginPassword": {},
+  "pageHomeTitle": "Willkommen {firstName}",
+  "@pageHomeTitle": {
+    "description": "Welcome message on the Home screen",
+    "placeholders": {
+      "firstName": {
+        "type": "String"
+      }
+    }
+  },
+  "pageHomeInboxCount": "{count, plural, zero{Sie haben keine neuen Nachrichten} one{You have 1 new message} other{You have {count} new messages}}",
+  "@pageHomeInboxCount": {
+    "description": "New messages count on the Home screen",
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "pageHomeBirthday": "{sex, select, male{Sein Geburtstag} female{Her birthday} other{Their birthday}}",
+  "@pageHomeBirthday": {
+    "description": "Birthday message on the Home screen",
+    "placeholders": {
+      "sex": {}
+    }
+  },
+  "commonVehicleType": "{vehicleType, select, sedan{Dann} cabriolet{Solid roof cabriolet} truck{16 wheel truck} other{Other}}",
+  "@commonVehicleType": {
+    "description": "Vehicle type",
+    "placeholders": {
+      "vehicleType": {}
+    }
+  }
+}
