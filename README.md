@@ -7,7 +7,10 @@ An intelligent command-line utility for translating ARB (Application Resource Bu
 - **Smart Change Detection**: Only translates modified or new content, saving API calls and time
 - **Batch Processing**: Translate entire folders recursively or a single source file
 - **Manual Translation Override**: Support for custom translations via `@x-translations` metadata
-- **🆕 Dart Code Generation**: Generate ready-to-use Dart localization code using intl_utils integration
+- **🆕 Dual Localization Support**: Choose between Flutter's built-in `gen-l10n` or `intl_utils` package
+- **🤖 Auto-Configuration**: Automatically detects and configures your preferred localization method
+- **📝 Intelligent Setup**: Creates `l10n.yaml` or configures `pubspec.yaml` automatically
+- **🔧 Dart Code Generation**: Generate ready-to-use Dart localization code with either method
 - **Stats**: Gives you full statistics on the number of translations made
 
 
@@ -25,7 +28,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dev_dependencies:
-  smart_arb_translator: ^1.0.0
+  smart_arb_translator: ^1.0.1
 ```
 
 Then run:
@@ -160,9 +163,11 @@ smart_arb_translator \
 | `--l10n_directory` | Output directory for merged files | `lib/l10n` |
 | `--output_file_name` | Custom output filename | `intl_` |
 | `--generate_dart` | Generate Dart localization code | `false` |
+| `--l10n_method` | Localization method: `gen-l10n` or `intl_utils` | Auto-detect |
 | `--dart_class_name` | Name for generated localization class | `S` |
 | `--dart_output_dir` | Directory for generated Dart files | `lib/generated` |
 | `--dart_main_locale` | Main locale for Dart code generation | `en` |
+| `--auto_approve` | Auto-approve configuration changes | `false` |
 
 
 ### Programmatic Usage
@@ -186,9 +191,68 @@ void main() async {
 
 ## 🎨 Advanced Features
 
+### 🔄 Dual Localization Method Support
+
+Smart ARB Translator supports both Flutter's official localization solution and the popular third-party package:
+
+#### **Flutter gen-l10n (Official)**
+- ✅ Official Flutter solution
+- ✅ Uses `l10n.yaml` configuration
+- ✅ Runs `flutter gen-l10n` command
+- ✅ Integrated with Flutter SDK
+
+#### **intl_utils (Third-party)**
+- ✅ More configuration options
+- ✅ Uses `flutter_intl` section in `pubspec.yaml`
+- ✅ Runs `dart run intl_utils:generate`
+- ✅ Popular community package
+
+#### **🤖 Intelligent Auto-Detection**
+
+The tool automatically chooses the best method for your project:
+
+1. **Existing `l10n.yaml`** → Uses `gen-l10n`
+2. **Existing `intl_utils` setup** → Uses `intl_utils`
+3. **Saved preference** → Uses your previous choice
+4. **No setup found** → Prompts you to choose (or uses `intl_utils` with `--auto_approve`)
+
+#### **Manual Method Selection**
+
+```bash
+# Force gen-l10n method
+smart_arb_translator \
+  --source_dir lib/l10n \
+  --api_key api_key.txt \
+  --language_codes es,fr \
+  --generate_dart \
+  --l10n_method gen-l10n
+
+# Force intl_utils method
+smart_arb_translator \
+  --source_dir lib/l10n \
+  --api_key api_key.txt \
+  --language_codes es,fr \
+  --generate_dart \
+  --l10n_method intl_utils
+```
+
+#### **🔧 Auto-Configuration**
+
+The tool automatically sets up your project:
+
+**For gen-l10n:**
+- Creates `l10n.yaml` with proper configuration
+- Sets up ARB directory and output paths
+- Configures template file and class name
+
+**For intl_utils:**
+- Adds `intl_utils` to `dev_dependencies`
+- Creates `flutter_intl` configuration in `pubspec.yaml`
+- Sets up ARB directory and output paths
+
 ### Dart Code Generation Integration
 
-Smart ARB Translator now includes integrated Dart code generation using `intl_utils`, providing a complete end-to-end solution:
+Smart ARB Translator includes integrated Dart code generation with both methods, providing a complete end-to-end solution:
 
 #### Benefits:
 - **One Command Solution**: Translate and generate Dart code in a single step
@@ -205,22 +269,33 @@ Smart ARB Translator now includes integrated Dart code generation using `intl_ut
 # Step 1: Translate ARB files
 smart_arb_translator --source_dir lib/l10n --api_key api_key.txt --language_codes es,fr
 
-# Step 2: Install intl_utils
-dart pub add dev:intl_utils
+# Step 2: Choose and configure localization method
+# Option A: Setup gen-l10n manually
+# - Create l10n.yaml
+# - Configure paths and class names
+# - Run: flutter gen-l10n
 
-# Step 3: Configure pubspec.yaml manually
-# Step 4: Generate Dart code
-dart run intl_utils:generate
+# Option B: Setup intl_utils manually  
+# - Install: dart pub add dev:intl_utils
+# - Configure pubspec.yaml flutter_intl section
+# - Run: dart run intl_utils:generate
 ```
 
 **After (Integrated Solution):**
 ```bash
-# Single command does everything
+# Single command does everything automatically
 smart_arb_translator \
   --source_dir lib/l10n \
   --api_key api_key.txt \
   --language_codes es,fr \
   --generate_dart
+  
+# The tool will:
+# ✅ Translate your ARB files
+# ✅ Auto-detect or prompt for localization method
+# ✅ Configure l10n.yaml or pubspec.yaml automatically
+# ✅ Generate type-safe Dart code
+# ✅ Save your preference for future runs
 ```
 
 ### Manual Translation Overrides
@@ -272,25 +347,17 @@ All files will be processed recursively and organized in the output structure.
 ```yaml
 # pubspec.yaml
 dev_dependencies:
-  smart_arb_translator: ^1.0.0
+  smart_arb_translator: ^1.0.1
 
 flutter:
   generate: true
 ```
 
-### 2. Configure l10n
-
-```yaml
-# l10n.yaml
-arb-dir: lib/l10n
-template-arb-file: app_en.arb
-output-localization-file: app_localizations.dart
-```
-
-### 3. Translate and generate
+### 2. Translate and generate (Auto-configures for you!)
 
 ```bash
 # Complete workflow: Translate ARB files + Generate Dart code
+# The tool will automatically configure your preferred localization method
 smart_arb_translator \
   --source_dir lib/l10n \
   --api_key api_key.txt \
@@ -298,8 +365,35 @@ smart_arb_translator \
   --generate_dart \
   --dart_class_name AppLocalizations
 
-# Alternative: Use Flutter's built-in generator (if you prefer)
-flutter gen-l10n
+# This will create either:
+# - l10n.yaml (for gen-l10n method) OR
+# - flutter_intl config in pubspec.yaml (for intl_utils method)
+```
+
+### 3. Manual configuration (Optional)
+
+If you prefer manual setup, you can configure either method:
+
+**Option A: gen-l10n (Flutter official)**
+```yaml
+# l10n.yaml (created automatically by smart_arb_translator)
+arb-dir: lib/l10n
+template-arb-file: intl_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+output-dir: lib/generated
+```
+
+**Option B: intl_utils (Third-party)**
+```yaml
+# pubspec.yaml (configured automatically by smart_arb_translator)
+flutter_intl:
+  enabled: true
+  class_name: AppLocalizations
+  main_locale: en
+  arb_dir: lib/l10n
+  output_dir: lib/generated
+  use_deferred_loading: false
 ```
 
 ### 4. Use in your Flutter app
