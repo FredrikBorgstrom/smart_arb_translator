@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.3] - 2024-12-19
+## [1.3.4] 2025-05-27
+
+- Typo in readme fixed
+
+## [1.3.3] - 2025-05-27
 
 ### Enhanced
 - 📚 **Comprehensive API Documentation**: Added extensive dartdoc comments to all public API elements to meet pub.dev documentation requirements
@@ -37,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✅ **Architecture Understanding**: Clear documentation of class relationships and workflows
 - ✅ **IDE Support**: Better IntelliSense and code completion with detailed documentation
 
-## [1.3.2] - 2024-12-19
+## [1.3.2] - 2025-05-27
 
 ### Enhanced
 - 🔧 **Extended Auto-Configuration**: Added prompts for API key, cache directory, and output directory in auto-configuration wizard
@@ -62,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✅ **Single Source of Truth**: All configuration managed through smart_arb_translator section
 - ✅ **Better Integration**: Seamless intl_utils workflow without configuration duplication
 
-## [1.3.1] - 2024-12-19
+## [1.3.1] - 2025-05-27
 
 ### Fixed
 - 🐛 **Type Casting Error**: Fixed "type 'ArgResults' is not a subtype of type '_MergedArgResults'" error in auto-configuration
@@ -73,7 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved handling of underlying ArgResults objects in merged configuration
 - Updated default source directory to be more descriptive and avoid conflicts
 
-## [1.3.0] - 2024-12-19
+## [1.3.0] - 2025-05-27
 
 ### Added
 - 🔧 **Enhanced Auto-Configuration**: Comprehensive setup wizard when no source configuration is found
@@ -121,7 +125,7 @@ smart_arb_translator
 - ✅ **Persistent Configuration**: Choices are saved for future runs
 - ✅ **Smart Defaults**: Sensible defaults reduce configuration burden
 
-## [1.2.0] - 2024-12-19
+## [1.2.0] - 2025-05-26
 
 ### Added
 - 🚀 **Deferred Loading Support**: New `--use_deferred_loading` parameter for Flutter Web optimization
@@ -170,7 +174,7 @@ smart_arb_translator:
 - ✅ **Scalable**: Particularly beneficial for apps with many supported languages
 - ✅ **Configurable**: Easy to enable/disable based on project requirements
 
-## [1.1.0] - 2024-12-19
+## [1.1.0] - 2025-05-25
 
 ### Added
 - ⚙️ **pubspec.yaml Configuration Support**: Configure all parameters directly in your `pubspec.yaml` file under the `smart_arb_translator` section
@@ -228,7 +232,7 @@ smart_arb_translator --language_codes it,pt --generate_dart false
 - ✅ **IDE Integration**: Better tooling support
 - ✅ **Cleaner CI/CD**: Simplified build scripts
 
-## [1.0.1] - 2024-05-26
+## [1.0.1] - 2025-05-25
 
 ### Added
 - 🎯 **Dual Localization Method Support**: Choose between Flutter's built-in `gen-l10n` or `intl_utils` package
@@ -270,7 +274,7 @@ smart_arb_translator --source_dir lib/l10n --api_key api_key.txt --language_code
 smart_arb_translator --source_dir lib/l10n --api_key api_key.txt --language_codes es,fr --generate_dart --auto_approve
 ```
 
-## [1.0.0] - 2024-01-01
+## [1.0.0] - 2025-05-25
 
 ### Added
 - 🎉 **Initial release of Smart ARB Translator**

@@ -10,7 +10,7 @@ A command-line utility for translating ARB (Application Resource Bundle) files u
 - **🆕 Dual Localization Support**: Choose between Flutter's built-in `gen-l10n` or `intl_utils` package
 - **🤖 Auto-Configuration**: Automatically detects and configures your preferred localization method
 - **📝 Intelligent Setup**: Creates `l10n.yaml` or configures `pubspec.yaml` automatically
-- **🔧 Dart Code Generation**: Generate ready-to-use Dart localization code with either method or simply tranlate and use your own dart generator
+- **🔧 Dart Code Generation**: Generate ready-to-use Dart localization code with either method or simply translate and use your own dart generator
 - **⚙️ Pubspec.yaml Configuration**: Configure all parameters directly in your `pubspec.yaml` file
 - **Stats**: Gives you full statistics on the number of translations made
 
