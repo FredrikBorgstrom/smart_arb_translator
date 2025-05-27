@@ -23,14 +23,14 @@ void main() {
       }
     });
 
-    test('should use CLI arguments when no pubspec config exists', () {
+    test('should use CLI arguments when no pubspec config exists', () async {
       // Create a basic pubspec without smart_arb_translator section
       tempPubspec.writeAsStringSync('''
 name: test_app
 version: 1.0.0
 ''');
 
-      final result = ArbTranslatorArgumentParser.parseArguments([
+      final result = await ArbTranslatorArgumentParser.parseArguments([
         '--source_dir',
         'lib/l10n',
         '--api_key',
@@ -44,7 +44,7 @@ version: 1.0.0
       expect(result[ArbTranslatorArgumentParser.languageCodes], equals(['es', 'fr']));
     });
 
-    test('should merge pubspec config with CLI arguments (CLI takes precedence)', () {
+    test('should merge pubspec config with CLI arguments (CLI takes precedence)', () async {
       tempPubspec.writeAsStringSync('''
 name: test_app
 version: 1.0.0
@@ -57,7 +57,7 @@ smart_arb_translator:
   dart_class_name: PubspecLocalizations
 ''');
 
-      final result = ArbTranslatorArgumentParser.parseArguments([
+      final result = await ArbTranslatorArgumentParser.parseArguments([
         '--api_key', 'cli_api_key.txt', // This should override pubspec
         '--language_codes', 'es,fr', // This should override pubspec
       ]);
@@ -72,7 +72,7 @@ smart_arb_translator:
       expect(result[ArbTranslatorArgumentParser.dartClassName], equals('PubspecLocalizations'));
     });
 
-    test('should use only pubspec config when no CLI arguments provided', () {
+    test('should use only pubspec config when no CLI arguments provided', () async {
       tempPubspec.writeAsStringSync('''
 name: test_app
 version: 1.0.0
@@ -86,7 +86,7 @@ smart_arb_translator:
   dart_output_dir: lib/my_generated
 ''');
 
-      final result = ArbTranslatorArgumentParser.parseArguments([]);
+      final result = await ArbTranslatorArgumentParser.parseArguments([]);
 
       expect(result[ArbTranslatorArgumentParser.sourceDir], equals('lib/l10n'));
       expect(result[ArbTranslatorArgumentParser.apiKey], equals('pubspec_api_key.txt'));
@@ -96,7 +96,7 @@ smart_arb_translator:
       expect(result[ArbTranslatorArgumentParser.dartOutputDir], equals('lib/my_generated'));
     });
 
-    test('should apply defaults for missing values', () {
+    test('should apply defaults for missing values', () async {
       tempPubspec.writeAsStringSync('''
 name: test_app
 version: 1.0.0
@@ -106,18 +106,19 @@ smart_arb_translator:
   api_key: api_key.txt
 ''');
 
-      final result = ArbTranslatorArgumentParser.parseArguments([]);
+      final result = await ArbTranslatorArgumentParser.parseArguments([]);
 
-      // Should have defaults applied
+      // Check that defaults are applied
       expect(result[ArbTranslatorArgumentParser.languageCodes], equals(['es']));
       expect(result[ArbTranslatorArgumentParser.outputFileName], equals('intl_'));
       expect(result[ArbTranslatorArgumentParser.generateDart], isTrue);
       expect(result[ArbTranslatorArgumentParser.dartOutputDir], equals('lib/generated'));
       expect(result[ArbTranslatorArgumentParser.dartMainLocale], equals('en'));
       expect(result[ArbTranslatorArgumentParser.autoApprove], isFalse);
+      expect(result[ArbTranslatorArgumentParser.useDeferredLoading], isFalse);
     });
 
-    test('should handle comma-separated language codes from pubspec', () {
+    test('should handle comma-separated language codes from pubspec', () async {
       tempPubspec.writeAsStringSync('''
 name: test_app
 version: 1.0.0
@@ -128,9 +129,51 @@ smart_arb_translator:
   language_codes: "es,fr,de,it"
 ''');
 
-      final result = ArbTranslatorArgumentParser.parseArguments([]);
+      final result = await ArbTranslatorArgumentParser.parseArguments([]);
 
       expect(result[ArbTranslatorArgumentParser.languageCodes], equals(['es', 'fr', 'de', 'it']));
+    });
+
+    test('should handle use_deferred_loading parameter from CLI and pubspec', () async {
+      tempPubspec.writeAsStringSync('''
+name: test_app
+version: 1.0.0
+
+smart_arb_translator:
+  source_dir: lib/l10n
+  api_key: api_key.txt
+  use_deferred_loading: true
+''');
+
+      // Test pubspec value when no CLI override
+      var result = await ArbTranslatorArgumentParser.parseArguments([]);
+      expect(result[ArbTranslatorArgumentParser.useDeferredLoading], isTrue);
+
+      // Test CLI flag (true) - should override pubspec
+      result = await ArbTranslatorArgumentParser.parseArguments([
+        '--use_deferred_loading',
+      ]);
+      expect(result[ArbTranslatorArgumentParser.useDeferredLoading], isTrue);
+
+      // Test with pubspec false and no CLI flag
+      tempPubspec.writeAsStringSync('''
+name: test_app
+version: 1.0.0
+
+smart_arb_translator:
+  source_dir: lib/l10n
+  api_key: api_key.txt
+  use_deferred_loading: false
+''');
+
+      result = await ArbTranslatorArgumentParser.parseArguments([]);
+      expect(result[ArbTranslatorArgumentParser.useDeferredLoading], isFalse);
+
+      // Test CLI flag overriding pubspec false
+      result = await ArbTranslatorArgumentParser.parseArguments([
+        '--use_deferred_loading',
+      ]);
+      expect(result[ArbTranslatorArgumentParser.useDeferredLoading], isTrue);
     });
   });
 }

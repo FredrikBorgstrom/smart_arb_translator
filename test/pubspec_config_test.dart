@@ -96,6 +96,7 @@ smart_arb_translator:
   dart_main_locale: en_US
   auto_approve: true
   l10n_method: intl_utils
+  use_deferred_loading: true
 ''');
 
       final config = PubspecConfig.loadFromPubspec(tempPubspec.path);
@@ -114,6 +115,7 @@ smart_arb_translator:
       expect(config.dartMainLocale, equals('en_US'));
       expect(config.autoApprove, isTrue);
       expect(config.l10nMethod, equals('intl_utils'));
+      expect(config.useDeferredLoading, isTrue);
     });
 
     test('should handle malformed YAML gracefully', () {
@@ -127,6 +129,52 @@ smart_arb_translator:
 
       final config = PubspecConfig.loadFromPubspec(tempPubspec.path);
       expect(config, isNull);
+    });
+
+    test('should handle use_deferred_loading parameter', () {
+      // Test with true value
+      tempPubspec.writeAsStringSync('''
+name: test_app
+version: 1.0.0
+
+smart_arb_translator:
+  source_dir: lib/l10n
+  api_key: secrets/api_key.txt
+  use_deferred_loading: true
+''');
+
+      var config = PubspecConfig.loadFromPubspec(tempPubspec.path);
+      expect(config, isNotNull);
+      expect(config!.useDeferredLoading, isTrue);
+
+      // Test with false value
+      tempPubspec.writeAsStringSync('''
+name: test_app
+version: 1.0.0
+
+smart_arb_translator:
+  source_dir: lib/l10n
+  api_key: secrets/api_key.txt
+  use_deferred_loading: false
+''');
+
+      config = PubspecConfig.loadFromPubspec(tempPubspec.path);
+      expect(config, isNotNull);
+      expect(config!.useDeferredLoading, isFalse);
+
+      // Test without the parameter (should be null)
+      tempPubspec.writeAsStringSync('''
+name: test_app
+version: 1.0.0
+
+smart_arb_translator:
+  source_dir: lib/l10n
+  api_key: secrets/api_key.txt
+''');
+
+      config = PubspecConfig.loadFromPubspec(tempPubspec.path);
+      expect(config, isNotNull);
+      expect(config!.useDeferredLoading, isNull);
     });
 
     test('hasAnyConfig should return true when any config is present', () {

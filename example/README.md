@@ -355,6 +355,9 @@ smart_arb_translator:
   # Localization method (auto-detected if not specified)
   l10n_method: gen-l10n                    # Options: "gen-l10n" or "intl_utils"
   
+  # Performance optimization
+  use_deferred_loading: false              # Enable deferred loading for locales (Flutter Web optimization)
+  
   # Automation
   auto_approve: false                      # Auto-approve pubspec.yaml modifications
 ```
@@ -381,4 +384,4 @@ smart_arb_translator:
 # - language_codes: [it, pt] (from CLI - overrides pubspec.yaml)
 # - generate_dart: true (from pubspec.yaml)
 smart_arb_translator --language_codes it,pt
-``` 
+```

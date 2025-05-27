@@ -9,7 +9,80 @@ import 'package:smart_arb_translator/src/models/arb_resource.dart';
 import 'package:smart_arb_translator/src/translation_service.dart';
 import 'package:smart_arb_translator/src/translation_statistics.dart';
 
+/// Processor for handling single ARB file translation workflows.
+///
+/// This class provides functionality for processing individual ARB files,
+/// including smart change detection, translation, and optional Dart code generation.
+/// It's designed for projects with single ARB files or when processing files individually.
+///
+/// The processor handles:
+/// - Single file translation with change detection
+/// - Intelligent caching to avoid unnecessary re-translation
+/// - Comparison with previous file versions
+/// - Integration with translation statistics
+/// - Dart code generation for single-file workflows
+/// - Proper file naming and organization
+///
+/// Example usage:
+/// ```dart
+/// await SingleFileProcessor.processSingleFile(
+///   'lib/l10n/app_en.arb',
+///   ['es', 'fr', 'de'],
+///   'path/to/api_key.txt',
+///   'lib/l10n',
+///   'app_',
+///   generateDart: true,
+///   dartClassName: 'AppLocalizations',
+/// );
+/// ```
 class SingleFileProcessor {
+  /// Processes a single ARB file for translation.
+  ///
+  /// This method handles the complete single-file translation workflow,
+  /// including change detection, translation, and optional Dart code generation.
+  /// It creates a cache copy of the source file for future change detection.
+  ///
+  /// The process includes:
+  /// 1. Reading and caching the source file
+  /// 2. Comparing with previous versions for change detection
+  /// 3. Translating only changed or new content
+  /// 4. Generating output files for each target language
+  /// 5. Creating temporary l10n structure for Dart generation
+  /// 6. Generating Dart localization code (optional)
+  /// 7. Reporting translation statistics
+  ///
+  /// Parameters:
+  /// - [sourceArb]: Path to the source ARB file to translate
+  /// - [languageCodes]: List of target language codes for translation
+  /// - [apiKey]: Google Translate API key for translation service
+  /// - [outputDirectory]: Directory for output files (optional, defaults to source directory)
+  /// - [outputFileName]: Prefix for output file names
+  /// - [generateDart]: Whether to generate Dart localization code
+  /// - [dartClassName]: Name for the generated Dart class
+  /// - [dartOutputDir]: Directory for generated Dart files
+  /// - [dartMainLocale]: Main locale for Dart code generation
+  /// - [autoApprove]: Whether to automatically approve setup changes
+  /// - [l10nMethod]: Localization method ('gen-l10n', 'intl_utils', or 'none')
+  /// - [useDeferredLoading]: Whether to enable deferred loading for locales
+  ///
+  /// Returns a [Future<void>] that completes when processing is finished.
+  ///
+  /// Example:
+  /// ```dart
+  /// await SingleFileProcessor.processSingleFile(
+  ///   'lib/l10n/messages_en.arb',
+  ///   ['es', 'fr', 'de', 'ja'],
+  ///   'secrets/api_key.txt',
+  ///   'lib/l10n',
+  ///   'messages_',
+  ///   generateDart: true,
+  ///   dartClassName: 'Messages',
+  ///   dartOutputDir: 'lib/generated',
+  ///   dartMainLocale: 'en',
+  ///   l10nMethod: 'gen-l10n',
+  ///   useDeferredLoading: false,
+  /// );
+  /// ```
   static Future<void> processSingleFile(
     String sourceArb,
     List<String> languageCodes,
@@ -22,6 +95,7 @@ class SingleFileProcessor {
     String dartMainLocale = 'en',
     bool autoApprove = false,
     String? l10nMethod,
+    bool useDeferredLoading = false,
   }) async {
     dartClassName ??= (l10nMethod == 'gen-l10n') ? 'AppLocalizations' : 'S';
     final arbFile = FileOperations.createFileRef(sourceArb);
@@ -120,6 +194,7 @@ class SingleFileProcessor {
           languageCodes: languageCodes,
           autoApprove: autoApprove,
           l10nMethod: l10nMethod,
+          useDeferredLoading: useDeferredLoading,
         );
 
         // Clean up temporary directory
@@ -130,6 +205,44 @@ class SingleFileProcessor {
     }
   }
 
+  /// Processes a single ARB file with intelligent change detection.
+  ///
+  /// This method performs the core translation logic with smart change detection,
+  /// comparing the current source file with a previous version to determine
+  /// which keys need translation. It only translates new or changed content,
+  /// significantly reducing API calls and processing time.
+  ///
+  /// The change detection logic:
+  /// 1. Compares current source with previous cached version
+  /// 2. Identifies new keys that don't exist in previous version
+  /// 3. Detects changed text content in existing keys
+  /// 4. Checks for modified attributes (descriptions, placeholders)
+  /// 5. Preserves existing translations for unchanged content
+  /// 6. Updates translation statistics
+  ///
+  /// Parameters:
+  /// - [sourceArbPath]: Path to the source ARB file
+  /// - [languageCodes]: List of target language codes
+  /// - [apiKey]: Google Translate API key
+  /// - [outputDirectory]: Directory for output files
+  /// - [outputFileName]: Name of the output file
+  /// - [previousSourceDocument]: Previous version of source for comparison (optional)
+  /// - [statistics]: Translation statistics tracker (optional)
+  ///
+  /// Returns a [Future<void>] that completes when processing is finished.
+  ///
+  /// Example:
+  /// ```dart
+  /// await SingleFileProcessor.processSingleFileWithChanges(
+  ///   'lib/l10n/app_en.arb',
+  ///   ['es'],
+  ///   'api_key.txt',
+  ///   'lib/l10n',
+  ///   'app_es.arb',
+  ///   previousSourceDocument,
+  ///   statistics,
+  /// );
+  /// ```
   static Future<void> processSingleFileWithChanges(
     String sourceArbPath,
     List<String> languageCodes,

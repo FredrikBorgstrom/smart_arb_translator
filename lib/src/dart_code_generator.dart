@@ -20,10 +20,72 @@ class _ProjectSetupInfo {
   bool get needsChanges => needsIntlUtils || needsFlutterIntl;
 }
 
-/// Service for generating Dart code from ARB files
-/// Integrates with intl_utils package functionality
+/// Service for generating Dart localization code from ARB files.
+///
+/// This class provides integration with Flutter's localization tools,
+/// supporting both the built-in `gen-l10n` tool and the third-party
+/// `intl_utils` package. It handles project setup, configuration management,
+/// and code generation workflows.
+///
+/// The generator supports:
+/// - Automatic detection of existing localization setups
+/// - Interactive method selection for new projects
+/// - Configuration persistence in pubspec.yaml
+/// - Both immediate and deferred loading patterns
+/// - Clean integration with Flutter development workflows
+///
+/// Example usage:
+/// ```dart
+/// await DartCodeGenerator.generateDartCode(
+///   arbDirectory: 'lib/l10n',
+///   outputDirectory: 'lib/generated',
+///   className: 'AppLocalizations',
+///   mainLocale: 'en',
+///   languageCodes: ['es', 'fr', 'de'],
+///   l10nMethod: 'gen-l10n',
+/// );
+/// ```
 class DartCodeGenerator {
-  /// Generates Dart localization code from ARB files
+  /// Generates Dart localization code from ARB files.
+  ///
+  /// This method orchestrates the complete Dart code generation process,
+  /// including method selection, project setup, and code generation using
+  /// either Flutter's built-in `gen-l10n` tool or the `intl_utils` package.
+  ///
+  /// The method automatically:
+  /// 1. Detects the Flutter project structure
+  /// 2. Determines the appropriate localization method
+  /// 3. Sets up necessary dependencies and configuration
+  /// 4. Generates the Dart localization code
+  /// 5. Provides usage instructions
+  ///
+  /// Parameters:
+  /// - [arbDirectory]: Directory containing the ARB files to process
+  /// - [outputDirectory]: Directory where generated Dart files will be placed
+  /// - [className]: Name for the generated localization class
+  /// - [mainLocale]: Primary locale for the application (e.g., 'en')
+  /// - [languageCodes]: List of target language codes for generation
+  /// - [autoApprove]: Whether to automatically approve setup changes
+  /// - [l10nMethod]: Localization method ('gen-l10n', 'intl_utils', or 'none')
+  /// - [useDeferredLoading]: Whether to enable deferred loading for locales
+  ///
+  /// Returns a [Future<void>] that completes when code generation is finished.
+  ///
+  /// Throws [Exception] if code generation fails or project setup is invalid.
+  ///
+  /// Example:
+  /// ```dart
+  /// await DartCodeGenerator.generateDartCode(
+  ///   arbDirectory: 'lib/l10n',
+  ///   outputDirectory: 'lib/generated',
+  ///   className: 'S',
+  ///   mainLocale: 'en',
+  ///   languageCodes: ['es', 'fr', 'de'],
+  ///   autoApprove: false,
+  ///   l10nMethod: 'intl_utils',
+  ///   useDeferredLoading: true,
+  /// );
+  /// ```
   static Future<void> generateDartCode({
     required String arbDirectory,
     required String outputDirectory,
@@ -32,6 +94,7 @@ class DartCodeGenerator {
     required List<String> languageCodes,
     bool autoApprove = false,
     String? l10nMethod,
+    bool useDeferredLoading = false,
   }) async {
     print('🔧 Generating Dart localization code...');
 
@@ -42,7 +105,11 @@ class DartCodeGenerator {
       // Determine which localization method to use
       final selectedMethod = await _determineL10nMethod(projectDir, l10nMethod, autoApprove);
 
-      if (selectedMethod == 'gen-l10n') {
+      if (selectedMethod == 'none') {
+        print('🚫 Skipping Dart code generation (method: none)');
+        print('✅ Translation completed without Dart code generation');
+        return;
+      } else if (selectedMethod == 'gen-l10n') {
         await _generateWithGenL10n(
           projectDirectory: projectDir,
           arbDirectory: arbDirectory,
@@ -50,6 +117,7 @@ class DartCodeGenerator {
           className: className,
           mainLocale: mainLocale,
           autoApprove: autoApprove,
+          useDeferredLoading: useDeferredLoading,
         );
       } else {
         await _generateWithIntlUtils(
@@ -59,6 +127,7 @@ class DartCodeGenerator {
           className: className,
           mainLocale: mainLocale,
           autoApprove: autoApprove,
+          useDeferredLoading: useDeferredLoading,
         );
       }
 
@@ -73,7 +142,22 @@ class DartCodeGenerator {
     }
   }
 
-  /// Determines which localization method to use based on project setup and user preference
+  /// Determines which localization method to use based on project setup and user preference.
+  ///
+  /// This method analyzes the project structure and existing configuration
+  /// to determine the most appropriate localization method. It checks for:
+  /// - Explicit method specification via parameters
+  /// - Saved preferences in pubspec.yaml
+  /// - Existing l10n.yaml file (indicates gen-l10n)
+  /// - Existing intl_utils setup in pubspec.yaml
+  /// - User preferences via interactive prompts
+  ///
+  /// Parameters:
+  /// - [projectDir]: Path to the Flutter project directory
+  /// - [l10nMethod]: Explicitly specified method (optional)
+  /// - [autoApprove]: Whether to use defaults without prompting
+  ///
+  /// Returns the selected localization method ('gen-l10n', 'intl_utils', or 'none').
   static Future<String> _determineL10nMethod(String projectDir, String? l10nMethod, bool autoApprove) async {
     // If method is explicitly specified via command line, use it
     if (l10nMethod != null) {
@@ -129,7 +213,16 @@ class DartCodeGenerator {
     return await _promptUserForL10nMethod(projectDir);
   }
 
-  /// Prompts the user to choose between gen-l10n and intl_utils
+  /// Prompts the user to choose between gen-l10n, intl_utils, and none.
+  ///
+  /// This method presents an interactive menu allowing users to select
+  /// their preferred localization method. It provides detailed information
+  /// about each option to help users make an informed decision.
+  ///
+  /// Parameters:
+  /// - [projectDir]: Path to the Flutter project directory for saving preferences
+  ///
+  /// Returns the user's selected method ('gen-l10n', 'intl_utils', or 'none').
   static Future<String> _promptUserForL10nMethod(String projectDir) async {
     print('\n🤔 No existing localization setup found.');
     print('Please choose a localization method:');
@@ -144,7 +237,11 @@ class DartCodeGenerator {
     print('   - Runs "dart run intl_utils:generate" command');
     print('   - More configuration options');
     print('');
-    print('Enter your choice (1 for gen-l10n, 2 for intl_utils): ');
+    print('3. none (No Dart code generation)');
+    print('   - Skip Dart code generation');
+    print('   - Only perform translation');
+    print('');
+    print('Enter your choice (1 for gen-l10n, 2 for intl_utils, 3 for none): ');
 
     while (true) {
       final input = stdin.readLineSync()?.trim() ?? '';
@@ -155,8 +252,11 @@ class DartCodeGenerator {
       } else if (input == '2') {
         await _saveL10nMethodPreference(projectDir, 'intl_utils');
         return 'intl_utils';
+      } else if (input == '3') {
+        await _saveL10nMethodPreference(projectDir, 'none');
+        return 'none';
       } else {
-        print('Invalid choice. Please enter 1 or 2: ');
+        print('Invalid choice. Please enter 1, 2, or 3: ');
       }
     }
   }
@@ -241,6 +341,7 @@ class DartCodeGenerator {
     required String className,
     required String mainLocale,
     bool autoApprove = false,
+    bool useDeferredLoading = false,
   }) async {
     print('🚀 Using Flutter gen-l10n for code generation...');
 
@@ -254,6 +355,7 @@ class DartCodeGenerator {
         className: className,
         mainLocale: mainLocale,
         autoApprove: autoApprove,
+        useDeferredLoading: useDeferredLoading,
       );
     }
 
@@ -279,6 +381,7 @@ class DartCodeGenerator {
     required String className,
     required String mainLocale,
     bool autoApprove = false,
+    bool useDeferredLoading = false,
   }) async {
     print('🚀 Using intl_utils for code generation...');
 
@@ -290,10 +393,26 @@ class DartCodeGenerator {
       className: className,
       mainLocale: mainLocale,
       autoApprove: autoApprove,
+      useDeferredLoading: useDeferredLoading,
     );
 
-    // Run intl_utils generation
-    await _runIntlUtilsGeneration(projectDirectory);
+    // Temporarily add full configuration to flutter_intl section for intl_utils
+    await _addTemporaryIntlUtilsConfig(
+      projectDirectory: projectDirectory,
+      arbDirectory: arbDirectory,
+      outputDirectory: outputDirectory,
+      className: className,
+      mainLocale: mainLocale,
+      useDeferredLoading: useDeferredLoading,
+    );
+
+    try {
+      // Run intl_utils generation
+      await _runIntlUtilsGeneration(projectDirectory);
+    } finally {
+      // Clean up flutter_intl section to keep only enabled: true
+      await _cleanupIntlUtilsConfig(projectDirectory);
+    }
   }
 
   /// Creates l10n.yaml configuration file for gen-l10n
@@ -304,6 +423,7 @@ class DartCodeGenerator {
     required String? className,
     required String mainLocale,
     bool autoApprove = false,
+    bool useDeferredLoading = false,
   }) async {
     final l10nYamlFile = File(path.join(projectDirectory, 'l10n.yaml'));
 
@@ -332,6 +452,7 @@ template-arb-file: intl_$mainLocale.arb
 output-localization-file: ${camelToSnake(className)}.dart
 output-class: $className
 output-dir: $relativeOutputDir
+use-deferred-loading: $useDeferredLoading
 ''';
 
     await l10nYamlFile.writeAsString(l10nConfig);
@@ -398,6 +519,7 @@ output-dir: $relativeOutputDir
     required String className,
     required String mainLocale,
     bool autoApprove = false,
+    bool useDeferredLoading = false,
   }) async {
     final pubspecFile = File(path.join(projectDirectory, 'pubspec.yaml'));
 
@@ -413,7 +535,8 @@ output-dir: $relativeOutputDir
     final relativeOutputDir = path.relative(outputDirectory, from: projectDirectory);
 
     // Check what needs to be added
-    final setupInfo = _analyzeProjectSetup(pubspecYaml, relativeArbDir, relativeOutputDir, className, mainLocale);
+    final setupInfo =
+        _analyzeProjectSetup(pubspecYaml, relativeArbDir, relativeOutputDir, className, mainLocale, useDeferredLoading);
 
     if (!setupInfo.needsChanges) {
       print('✅ Project already configured for intl_utils');
@@ -436,6 +559,7 @@ output-dir: $relativeOutputDir
       relativeOutputDir: relativeOutputDir,
       className: className,
       mainLocale: mainLocale,
+      useDeferredLoading: useDeferredLoading,
     );
 
     print('📝 Updated pubspec.yaml with intl_utils configuration');
@@ -543,6 +667,7 @@ output-dir: $relativeOutputDir
     String relativeOutputDir,
     String className,
     String mainLocale,
+    bool useDeferredLoading,
   ) {
     final devDependencies = pubspecYaml['dev_dependencies'] as Map? ?? {};
     final flutterIntl = pubspecYaml['flutter_intl'] as Map?;
@@ -552,11 +677,6 @@ output-dir: $relativeOutputDir
 
     final flutterIntlConfig = {
       'enabled': true,
-      'class_name': className,
-      'main_locale': mainLocale,
-      'arb_dir': relativeArbDir,
-      'output_dir': relativeOutputDir,
-      'use_deferred_loading': false,
     };
 
     return _ProjectSetupInfo(
@@ -637,6 +757,7 @@ output-dir: $relativeOutputDir
     required String relativeOutputDir,
     required String className,
     required String mainLocale,
+    required bool useDeferredLoading,
   }) async {
     var modifiedContent = pubspecContent;
 
@@ -653,6 +774,7 @@ output-dir: $relativeOutputDir
         mainLocale: mainLocale,
         arbDir: relativeArbDir,
         outputDir: relativeOutputDir,
+        useDeferredLoading: useDeferredLoading,
       );
     }
 
@@ -710,13 +832,15 @@ output-dir: $relativeOutputDir
     return modifiedLines.join('\n');
   }
 
-  /// Adds flutter_intl configuration section
+  /// Adds flutter_intl configuration section (minimal - just enabled: true)
+  /// The actual configuration is handled by smart_arb_translator section
   static String _addFlutterIntlConfig(
     String pubspecContent, {
     required String className,
     required String mainLocale,
     required String arbDir,
     required String outputDir,
+    required bool useDeferredLoading,
   }) {
     final lines = pubspecContent.split('\n');
     final modifiedLines = <String>[];
@@ -729,16 +853,130 @@ output-dir: $relativeOutputDir
       modifiedLines.add('');
     }
 
+    // Add minimal flutter_intl configuration - just enabled: true
+    // The smart_arb_translator section will handle the actual configuration
     modifiedLines.addAll([
       'flutter_intl:',
       '  enabled: true',
-      '  class_name: $className',
-      '  main_locale: $mainLocale',
-      '  arb_dir: $arbDir',
-      '  output_dir: $outputDir',
-      '  use_deferred_loading: false',
     ]);
 
     return modifiedLines.join('\n');
+  }
+
+  /// Temporarily adds full configuration to flutter_intl section for intl_utils to read
+  static Future<void> _addTemporaryIntlUtilsConfig({
+    required String projectDirectory,
+    required String arbDirectory,
+    required String outputDirectory,
+    required String className,
+    required String mainLocale,
+    required bool useDeferredLoading,
+  }) async {
+    final pubspecFile = File(path.join(projectDirectory, 'pubspec.yaml'));
+    if (!pubspecFile.existsSync()) return;
+
+    final pubspecContent = await pubspecFile.readAsString();
+    final lines = pubspecContent.split('\n');
+    final modifiedLines = <String>[];
+
+    // Convert paths to be relative to the project directory
+    final relativeArbDir = path.relative(arbDirectory, from: projectDirectory);
+    final relativeOutputDir = path.relative(outputDirectory, from: projectDirectory);
+
+    bool inFlutterIntl = false;
+    int flutterIntlIndent = 0;
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final trimmedLine = line.trim();
+
+      // Check if we're entering flutter_intl section
+      if (trimmedLine == 'flutter_intl:') {
+        inFlutterIntl = true;
+        flutterIntlIndent = line.indexOf('flutter_intl:');
+        modifiedLines.add(line);
+
+        // Add full configuration for intl_utils
+        modifiedLines.addAll([
+          '${' ' * (flutterIntlIndent + 2)}enabled: true',
+          '${' ' * (flutterIntlIndent + 2)}class_name: $className',
+          '${' ' * (flutterIntlIndent + 2)}main_locale: $mainLocale',
+          '${' ' * (flutterIntlIndent + 2)}arb_dir: $relativeArbDir',
+          '${' ' * (flutterIntlIndent + 2)}output_dir: $relativeOutputDir',
+          '${' ' * (flutterIntlIndent + 2)}use_deferred_loading: $useDeferredLoading',
+        ]);
+        continue;
+      }
+
+      // Check if we're leaving flutter_intl section
+      if (inFlutterIntl && line.isNotEmpty && !line.startsWith(' ') && !line.startsWith('\t')) {
+        inFlutterIntl = false;
+      }
+
+      // Skip existing configuration lines in flutter_intl section
+      if (inFlutterIntl &&
+          (trimmedLine.startsWith('enabled:') ||
+              trimmedLine.startsWith('class_name:') ||
+              trimmedLine.startsWith('main_locale:') ||
+              trimmedLine.startsWith('arb_dir:') ||
+              trimmedLine.startsWith('output_dir:') ||
+              trimmedLine.startsWith('use_deferred_loading:'))) {
+        continue;
+      }
+
+      modifiedLines.add(line);
+    }
+
+    await pubspecFile.writeAsString(modifiedLines.join('\n'));
+    print('📝 Temporarily added full configuration to flutter_intl section');
+  }
+
+  /// Cleans up flutter_intl section to keep only enabled: true
+  static Future<void> _cleanupIntlUtilsConfig(String projectDirectory) async {
+    final pubspecFile = File(path.join(projectDirectory, 'pubspec.yaml'));
+    if (!pubspecFile.existsSync()) return;
+
+    final pubspecContent = await pubspecFile.readAsString();
+    final lines = pubspecContent.split('\n');
+    final modifiedLines = <String>[];
+
+    bool inFlutterIntl = false;
+    int flutterIntlIndent = 0;
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final trimmedLine = line.trim();
+
+      // Check if we're entering flutter_intl section
+      if (trimmedLine == 'flutter_intl:') {
+        inFlutterIntl = true;
+        flutterIntlIndent = line.indexOf('flutter_intl:');
+        modifiedLines.add(line);
+        // Add only enabled: true
+        modifiedLines.add('${' ' * (flutterIntlIndent + 2)}enabled: true');
+        continue;
+      }
+
+      // Check if we're leaving flutter_intl section
+      if (inFlutterIntl && line.isNotEmpty && !line.startsWith(' ') && !line.startsWith('\t')) {
+        inFlutterIntl = false;
+      }
+
+      // Skip all configuration lines in flutter_intl section except enabled
+      if (inFlutterIntl &&
+          (trimmedLine.startsWith('enabled:') ||
+              trimmedLine.startsWith('class_name:') ||
+              trimmedLine.startsWith('main_locale:') ||
+              trimmedLine.startsWith('arb_dir:') ||
+              trimmedLine.startsWith('output_dir:') ||
+              trimmedLine.startsWith('use_deferred_loading:'))) {
+        continue;
+      }
+
+      modifiedLines.add(line);
+    }
+
+    await pubspecFile.writeAsString(modifiedLines.join('\n'));
+    print('🧹 Cleaned up flutter_intl section (kept only enabled: true)');
   }
 }

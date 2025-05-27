@@ -6,7 +6,41 @@ import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/translation_service.dart';
 import 'package:smart_arb_translator/src/utils.dart';
 
+/// Core processor for handling ARB (Application Resource Bundle) file operations.
+///
+/// This class provides static methods for processing ARB documents, creating
+/// translation actions, generating translated ARB files, and comparing ARB attributes.
+/// It serves as the main engine for the translation workflow.
+///
+/// The processor handles:
+/// - Breaking down ARB resources into translatable segments
+/// - Coordinating with translation services
+/// - Applying translations back to ARB structure
+/// - Managing translation batching for API efficiency
+/// - Preserving ARB metadata and structure
 class ArbProcessor {
+  /// Creates lists of translation actions from an ARB document.
+  ///
+  /// This method analyzes all resources in the ARB document and creates
+  /// [Action] objects for each translatable text segment. The actions are
+  /// grouped into lists with a maximum number of words per list to optimize
+  /// translation API calls.
+  ///
+  /// The method processes ICU message format tokens to identify translatable
+  /// text while preserving placeholders and formatting. Text containing
+  /// placeholders is HTML-encoded to protect special characters during translation.
+  ///
+  /// Parameters:
+  /// - [arbDocument]: The source ARB document to process
+  ///
+  /// Returns a list of action lists, where each inner list contains up to 128 words
+  /// worth of translation actions.
+  ///
+  /// Example:
+  /// ```dart
+  /// final actionLists = ArbProcessor.createActionLists(arbDocument);
+  /// print('Created ${actionLists.length} batches for translation');
+  /// ```
   static List<List<Action>> createActionLists(ArbDocument arbDocument) {
     const maxWords = 128;
     final actionLists = <List<Action>>[];
@@ -49,6 +83,41 @@ class ArbProcessor {
     return actionLists;
   }
 
+  /// Creates a translated ARB file for a specific language.
+  ///
+  /// This method orchestrates the complete translation process for a single
+  /// target language. It translates all action lists using the translation
+  /// service, applies manual translation overrides, and generates a new
+  /// ARB file with the translated content.
+  ///
+  /// The process includes:
+  /// 1. Translating text segments using Google Translate API
+  /// 2. Applying manual translation overrides from x-translations
+  /// 3. Sanitizing translated text to remove HTML artifacts
+  /// 4. Updating ARB resources with translated content
+  /// 5. Writing the final ARB file to disk
+  ///
+  /// Parameters:
+  /// - [languageCode]: Target language code (e.g., 'es', 'fr', 'de')
+  /// - [arbDocument]: Source ARB document to translate
+  /// - [actionLists]: Pre-computed translation actions from [createActionLists]
+  /// - [outputDirectory]: Directory where the translated ARB file will be saved
+  /// - [outputFileName]: Name of the output ARB file
+  /// - [apiKey]: Google Translate API key for translation service
+  ///
+  /// Returns a [Future] that completes when the ARB file has been created.
+  ///
+  /// Example:
+  /// ```dart
+  /// await ArbProcessor.createArbFile(
+  ///   languageCode: 'es',
+  ///   arbDocument: sourceDocument,
+  ///   actionLists: actionLists,
+  ///   outputDirectory: 'lib/l10n',
+  ///   outputFileName: 'intl_es.arb',
+  ///   apiKey: 'your-api-key',
+  /// );
+  /// ```
   static Future<void> createArbFile({
     required String languageCode,
     required ArbDocument arbDocument,
@@ -106,6 +175,31 @@ class ArbProcessor {
     await file.writeAsString(newArbDocument.encode());
   }
 
+  /// Compares two ARB attributes for equality.
+  ///
+  /// This method performs a deep comparison of two [ArbAttributes] objects,
+  /// checking all fields including descriptions, placeholders, x-translations,
+  /// and resource types.
+  ///
+  /// The comparison handles null values correctly and performs deep equality
+  /// checks on nested maps like placeholders and x-translations.
+  ///
+  /// Parameters:
+  /// - [attr1]: First attributes object to compare
+  /// - [attr2]: Second attributes object to compare
+  ///
+  /// Returns true if the attributes are equivalent, false otherwise.
+  ///
+  /// Example:
+  /// ```dart
+  /// final areEqual = ArbProcessor.areAttributesEqual(
+  ///   resource1.attributes,
+  ///   resource2.attributes,
+  /// );
+  /// if (!areEqual) {
+  ///   print('Attributes have changed');
+  /// }
+  /// ```
   static bool areAttributesEqual(ArbAttributes? attr1, ArbAttributes? attr2) {
     if (attr1 == null && attr2 == null) {
       return true;
@@ -137,6 +231,16 @@ class ArbProcessor {
     return true;
   }
 
+  /// Compares two placeholder maps for equality.
+  ///
+  /// This private helper method performs deep comparison of placeholder
+  /// definitions, checking both the structure and content of nested maps.
+  ///
+  /// Parameters:
+  /// - [placeholders1]: First placeholders map
+  /// - [placeholders2]: Second placeholders map
+  ///
+  /// Returns true if the placeholder maps are equivalent.
   static bool _arePlaceholdersEqual(
       Map<String, Map<String, dynamic>>? placeholders1, Map<String, Map<String, dynamic>>? placeholders2) {
     if (placeholders1 == null && placeholders2 == null) {
@@ -170,6 +274,16 @@ class ArbProcessor {
     return true;
   }
 
+  /// Compares two x-translations maps for equality.
+  ///
+  /// This private helper method compares manual translation override maps
+  /// to determine if they contain the same translation data.
+  ///
+  /// Parameters:
+  /// - [xTranslations1]: First x-translations map
+  /// - [xTranslations2]: Second x-translations map
+  ///
+  /// Returns true if the x-translations maps are equivalent.
   static bool _areXTranslationsEqual(Map<String, dynamic>? xTranslations1, Map<String, dynamic>? xTranslations2) {
     if (xTranslations1 == null && xTranslations2 == null) {
       return true;

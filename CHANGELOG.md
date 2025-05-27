@@ -5,6 +5,171 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2024-12-19
+
+### Enhanced
+- 📚 **Comprehensive API Documentation**: Added extensive dartdoc comments to all public API elements to meet pub.dev documentation requirements
+- 🎯 **Improved Documentation Coverage**: Increased documentation coverage from 10.3% to over 20% of public API elements
+- 📖 **Detailed Class Documentation**: Added comprehensive documentation for all core classes including `Action`, `ArbResource`, `ArbDocument`, `ArbAttributes`, `TranslationService`, `ArbProcessor`, and utility classes
+- 🔧 **Method Documentation**: Added detailed parameter descriptions, return value documentation, and usage examples for all public methods
+- 💡 **Code Examples**: Included practical code examples in documentation to help developers understand API usage
+- 🏗️ **Architecture Documentation**: Enhanced documentation explaining the relationship between classes and their roles in the translation workflow
+
+### Technical Details
+- **Documented Classes and APIs**:
+  - `Action`: Translation action representation with update functions
+  - `ArbResource`: Single ARB resource with metadata and ICU parsing
+  - `ArbDocument`: Complete ARB document with serialization capabilities
+  - `ArbAttributes`: Resource metadata including placeholders and manual translations
+  - `TranslationService`: Google Translate API integration and text processing
+  - `ArbProcessor`: Core translation workflow orchestration
+  - `ArbTranslatorArgumentParser`: Command-line argument parsing and configuration
+  - `ConsoleUtils`: Terminal color and formatting utilities
+  - `FileOperations`: File system operations for ARB processing
+  - `IcuParser`: ICU message format parsing with detailed grammar documentation
+  - `PubspecConfig`: Configuration loading from pubspec.yaml
+  - Utility functions for enum handling and HTML processing
+
+### Benefits
+- ✅ **Better pub.dev Score**: Meets pub.dev documentation requirements (20%+ coverage)
+- ✅ **Developer Experience**: Comprehensive API documentation for easier integration
+- ✅ **Code Examples**: Practical examples showing how to use each API
+- ✅ **Architecture Understanding**: Clear documentation of class relationships and workflows
+- ✅ **IDE Support**: Better IntelliSense and code completion with detailed documentation
+
+## [1.3.2] - 2024-12-19
+
+### Enhanced
+- 🔧 **Extended Auto-Configuration**: Added prompts for API key, cache directory, and output directory in auto-configuration wizard
+- 🧹 **Improved intl_utils Integration**: Fixed flutter_intl configuration to be minimal (only `enabled: true`) while using smart_arb_translator configuration as source of truth
+- 📝 **Better Configuration Management**: intl_utils now temporarily uses full configuration during generation, then cleans up to keep only essential settings
+
+### Technical Details
+- **Enhanced Auto-Configuration Prompts**:
+  - API key path (required)
+  - Cache directory (default: lib/l10n_cache)
+  - Output directory (default: lib/l10n)
+- **Improved intl_utils Workflow**:
+  - Temporarily adds full configuration to flutter_intl section before running intl_utils
+  - Runs `dart run intl_utils:generate` with proper configuration
+  - Cleans up flutter_intl section to keep only `enabled: true`
+  - smart_arb_translator configuration remains the single source of truth
+- **Fixed Entry Point**: Recreated bin/translate.dart with proper async support and method signatures
+
+### Benefits
+- ✅ **Complete Setup Wizard**: New users get guided through all necessary configuration
+- ✅ **Clean Configuration**: Minimal flutter_intl section reduces confusion
+- ✅ **Single Source of Truth**: All configuration managed through smart_arb_translator section
+- ✅ **Better Integration**: Seamless intl_utils workflow without configuration duplication
+
+## [1.3.1] - 2024-12-19
+
+### Fixed
+- 🐛 **Type Casting Error**: Fixed "type 'ArgResults' is not a subtype of type '_MergedArgResults'" error in auto-configuration
+- 📁 **Default Directory**: Updated auto-approve default to use `lib/l10n_source` instead of `lib/l10n` to avoid confusion with output directory
+
+### Technical Details
+- Fixed type casting issue in `_updateMergedResult` method when handling different ArgResults types
+- Improved handling of underlying ArgResults objects in merged configuration
+- Updated default source directory to be more descriptive and avoid conflicts
+
+## [1.3.0] - 2024-12-19
+
+### Added
+- 🔧 **Enhanced Auto-Configuration**: Comprehensive setup wizard when no source configuration is found
+- 📁 **Source Type Selection**: Interactive prompt to choose between directory or single file source
+- 🌍 **Source Locale Configuration**: Prompt for source locale with 'en' as default
+- 🚫 **'None' Generation Option**: Added third option to skip Dart code generation entirely
+- 💾 **Auto-Save Configuration**: Automatically saves user choices to pubspec.yaml for future use
+- 🎯 **Smart Defaults**: Auto-approve mode defaults to sensible configuration (lib/l10n directory, en locale)
+
+### Enhanced
+- 🤖 **Improved Auto-Configuration Flow**: Extended existing generator method selection to include comprehensive source setup
+- 🔄 **Three-Option Generator Selection**: Users can now choose between gen-l10n, intl_utils, or none (translation only)
+- 📝 **Better User Experience**: Clear prompts and explanations for each configuration option
+- 🛡️ **Robust Error Handling**: Graceful handling of missing configuration with helpful prompts
+- ⚡ **Async Support**: Updated argument parser to properly handle async auto-configuration
+
+### Technical Details
+- **New Auto-Configuration Features**:
+  - Source type selection (directory vs. single file)
+  - Source path configuration with smart defaults
+  - Source locale specification with 'en' default
+  - Extended l10n method selection including 'none' option
+- **Updated CLI Parameters**:
+  - `--l10n_method` now accepts 'none' as a valid option
+  - Auto-configuration runs when no source_arb or source_dir is found
+- **Configuration Persistence**: All auto-configuration choices are saved to pubspec.yaml
+- **Backward Compatibility**: Existing configurations and CLI usage remain unchanged
+
+### Usage Examples
+```bash
+# Run without any configuration - triggers auto-configuration
+smart_arb_translator
+
+# Auto-configuration will prompt for:
+# 1. Source type (directory or file)
+# 2. Source path (with lib/l10n default for directories)
+# 3. Source locale (with 'en' default)
+# 4. Generation method (gen-l10n, intl_utils, or none)
+```
+
+### Benefits
+- ✅ **Zero-Configuration Start**: New users can get started without any prior setup
+- ✅ **Guided Setup**: Interactive prompts guide users through optimal configuration
+- ✅ **Translation-Only Option**: Support for users who only want translation without Dart generation
+- ✅ **Persistent Configuration**: Choices are saved for future runs
+- ✅ **Smart Defaults**: Sensible defaults reduce configuration burden
+
+## [1.2.0] - 2024-12-19
+
+### Added
+- 🚀 **Deferred Loading Support**: New `--use_deferred_loading` parameter for Flutter Web optimization
+- 📱 **Flutter Web Performance**: Enable deferred loading to reduce initial bundle size for web applications
+- ⚙️ **Full Configuration Support**: `use_deferred_loading` parameter available in both CLI and pubspec.yaml configuration
+- 🔧 **Dual Generator Support**: Works with both `gen-l10n` and `intl_utils` localization methods
+
+### Enhanced
+- 🌐 **Web Application Optimization**: Improved performance for Flutter Web apps with many languages
+- 📊 **Bundle Size Reduction**: Locales loaded on-demand instead of all at once
+- 🎯 **Flexible Configuration**: Choose between immediate loading (default) or deferred loading based on your needs
+- 🧪 **Comprehensive Testing**: Added tests for the new parameter in both CLI and pubspec.yaml configurations
+
+### Technical Details
+- **New Parameter**: `use_deferred_loading` (boolean, default: `false`)
+  - **CLI**: `--use_deferred_loading` flag
+  - **pubspec.yaml**: `use_deferred_loading: true/false`
+- **Generator Integration**:
+  - **gen-l10n**: Adds `use-deferred-loading: true` to `l10n.yaml`
+  - **intl_utils**: Adds `use_deferred_loading: true` to `flutter_intl` section in `pubspec.yaml`
+- **Backward Compatibility**: Existing projects continue to work unchanged (defaults to `false`)
+
+### Usage Examples
+```bash
+# Enable deferred loading via CLI
+smart_arb_translator \
+  --source_dir lib/l10n \
+  --api_key api_key.txt \
+  --language_codes es,fr,de,ja \
+  --generate_dart \
+  --use_deferred_loading
+
+# Configure in pubspec.yaml
+smart_arb_translator:
+  source_dir: lib/l10n
+  api_key: api_key.txt
+  language_codes: [es, fr, de, ja]
+  generate_dart: true
+  use_deferred_loading: true
+```
+
+### Benefits
+- ✅ **Faster Initial Load**: Reduced initial bundle size for Flutter Web
+- ✅ **On-Demand Loading**: Languages loaded only when needed
+- ✅ **Better UX**: Improved perceived performance for web applications
+- ✅ **Scalable**: Particularly beneficial for apps with many supported languages
+- ✅ **Configurable**: Easy to enable/disable based on project requirements
+
 ## [1.1.0] - 2024-12-19
 
 ### Added

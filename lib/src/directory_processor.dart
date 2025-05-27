@@ -9,7 +9,86 @@ import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/single_file_processor.dart';
 import 'package:smart_arb_translator/src/translation_statistics.dart';
 
+/// Processor for handling directory-based ARB translation workflows.
+///
+/// This class provides functionality for processing entire directories containing
+/// ARB files, including recursive file discovery, batch translation, change detection,
+/// file merging, and Dart code generation. It's designed for projects with multiple
+/// ARB files organized in directory structures.
+///
+/// The processor handles:
+/// - Recursive discovery of ARB files in directory trees
+/// - Batch translation of multiple files
+/// - Smart change detection to avoid unnecessary re-translation
+/// - File caching and organization
+/// - Integration with arb_merge for l10n directory structure
+/// - Dart code generation with multiple localization methods
+/// - Translation statistics and progress reporting
+///
+/// Example usage:
+/// ```dart
+/// await DirectoryProcessor.processDirectory(
+///   'lib/l10n_source',
+///   ['es', 'fr', 'de'],
+///   'path/to/api_key.txt',
+///   'lib/l10n_cache',
+///   'intl_',
+///   'lib/l10n',
+///   generateDart: true,
+///   dartClassName: 'AppLocalizations',
+/// );
+/// ```
 class DirectoryProcessor {
+  /// Processes a directory containing ARB files for translation.
+  ///
+  /// This method orchestrates the complete directory-based translation workflow,
+  /// including file discovery, translation, merging, and optional Dart code generation.
+  /// It supports smart change detection to avoid re-translating unchanged content.
+  ///
+  /// The process includes:
+  /// 1. Copying source directory to cache for change detection
+  /// 2. Discovering all ARB files recursively
+  /// 3. Translating files with change detection
+  /// 4. Merging translated files to l10n directory structure
+  /// 5. Generating Dart localization code (optional)
+  /// 6. Reporting translation statistics
+  ///
+  /// Parameters:
+  /// - [sourcePath]: Path to the directory containing source ARB files
+  /// - [languageCodes]: List of target language codes for translation
+  /// - [apiKey]: Google Translate API key for translation service
+  /// - [cachePath]: Directory for caching translated files (optional)
+  /// - [outputFileName]: Prefix for output ARB file names
+  /// - [l10nDirectory]: Directory for merged l10n files (optional)
+  /// - [generateDart]: Whether to generate Dart localization code
+  /// - [dartClassName]: Name for the generated Dart class
+  /// - [dartOutputDir]: Directory for generated Dart files
+  /// - [dartMainLocale]: Main locale for Dart code generation
+  /// - [autoApprove]: Whether to automatically approve setup changes
+  /// - [l10nMethod]: Localization method ('gen-l10n', 'intl_utils', or 'none')
+  /// - [useDeferredLoading]: Whether to enable deferred loading for locales
+  ///
+  /// Returns a [Future<void>] that completes when processing is finished.
+  ///
+  /// Throws [SystemExit] if the source directory doesn't exist or contains no ARB files.
+  ///
+  /// Example:
+  /// ```dart
+  /// await DirectoryProcessor.processDirectory(
+  ///   'lib/l10n_source',
+  ///   ['es', 'fr', 'de', 'ja'],
+  ///   'secrets/api_key.txt',
+  ///   'lib/l10n_cache',
+  ///   'intl_',
+  ///   'lib/l10n',
+  ///   generateDart: true,
+  ///   dartClassName: 'S',
+  ///   dartOutputDir: 'lib/generated',
+  ///   dartMainLocale: 'en',
+  ///   l10nMethod: 'intl_utils',
+  ///   useDeferredLoading: true,
+  /// );
+  /// ```
   static Future<void> processDirectory(
     String sourcePath,
     List<String> languageCodes,
@@ -23,6 +102,7 @@ class DirectoryProcessor {
     String dartMainLocale = 'en',
     bool autoApprove = false,
     String? l10nMethod,
+    bool useDeferredLoading = false,
   }) async {
     dartClassName ??= (l10nMethod == 'gen-l10n') ? 'AppLocalizations' : 'S';
 
@@ -138,6 +218,7 @@ class DirectoryProcessor {
           languageCodes: languageCodes,
           autoApprove: autoApprove,
           l10nMethod: l10nMethod,
+          useDeferredLoading: useDeferredLoading,
         );
       } else {
         print('⚠️  Skipping Dart code generation due to validation errors');
@@ -148,6 +229,35 @@ class DirectoryProcessor {
     statistics.printSummary();
   }
 
+  /// Merges translated ARB files into a unified l10n directory structure.
+  ///
+  /// This method uses the arb_merge package to combine ARB files from multiple
+  /// language-specific directories into a single l10n directory with the
+  /// standard Flutter localization file naming convention (intl_{lang}.arb).
+  ///
+  /// The merging process:
+  /// 1. Discovers all language-specific output directories
+  /// 2. Uses arb_merge to combine files by language
+  /// 3. Creates unified intl_{lang}.arb files in the l10n directory
+  /// 4. Sorts keys for consistent output
+  /// 5. Reports merge results
+  ///
+  /// Parameters:
+  /// - [outputPath]: Base directory containing language-specific subdirectories
+  /// - [l10nPath]: Target directory for merged l10n files
+  /// - [languageCodes]: List of language codes to merge
+  ///
+  /// Returns a [Future<void>] that completes when merging is finished.
+  ///
+  /// Example:
+  /// ```dart
+  /// await DirectoryProcessor.mergeToL10nDirectory(
+  ///   'lib/l10n_cache',
+  ///   'lib/l10n',
+  ///   ['es', 'fr', 'de'],
+  /// );
+  /// // Creates: lib/l10n/intl_es.arb, lib/l10n/intl_fr.arb, lib/l10n/intl_de.arb
+  /// ```
   static Future<void> mergeToL10nDirectory(
     String outputPath,
     String l10nPath,
