@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.5] - 2025-01-27
+
+### Enhanced
+- 🌍 **Language Codes in Auto-Configuration**: Added language codes selection to the auto-configuration wizard
+- 📝 **Interactive Language Selection**: Users can now specify target languages during setup using comma-separated input (e.g., "es,fr,de,ja")
+- 💡 **Language Code Hints**: Provided common language code examples to help users choose appropriate codes
+- 💾 **Automatic Configuration Saving**: Language codes are automatically saved to pubspec.yaml in proper YAML list format
+- 🛡️ **Input Validation**: Added validation to ensure at least one valid language code is provided
+
+### Technical Details
+- **Enhanced Auto-Configuration Prompts**:
+  - Interactive prompt for target language codes with examples
+  - Comma-separated input parsing with whitespace trimming
+  - Validation to prevent empty language code lists
+- **Improved YAML Generation**:
+  - Proper handling of list values in pubspec.yaml configuration
+  - Language codes saved as YAML list format: `["es", "fr", "de"]`
+  - Consistent formatting for both new and existing configuration sections
+
+### Benefits
+- ✅ **Complete Setup Experience**: Auto-configuration now covers all essential parameters including target languages
+- ✅ **User-Friendly Input**: Simple comma-separated format for specifying multiple languages
+- ✅ **Proper Configuration**: Language codes correctly saved to pubspec.yaml for future use
+- ✅ **Guided Selection**: Common language code examples help users make informed choices
+
 ## [1.3.4] 2025-05-27
 
 - Typo in readme fixed

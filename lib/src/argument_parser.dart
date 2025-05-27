@@ -317,6 +317,29 @@ class ArbTranslatorArgumentParser {
     final outputInput = stdin.readLineSync()?.trim() ?? '';
     config[_l10nDirectory] = outputInput.isEmpty ? 'lib/l10n' : outputInput;
 
+    // Ask for target languages
+    print('\nEnter the language codes you want to translate to (comma-separated, e.g., es,fr,de,ja): ');
+    print(
+        'Common language codes: es (Spanish), fr (French), de (German), ja (Japanese), zh (Chinese), pt (Portuguese), it (Italian), ru (Russian), ar (Arabic), hi (Hindi)');
+    final languagesInput = stdin.readLineSync()?.trim() ?? '';
+    if (languagesInput.isEmpty) {
+      _setBrightRed();
+      stderr.write('At least one target language code is required.');
+      exit(2);
+    }
+
+    // Parse comma-separated language codes and validate they're not empty
+    final languageCodes =
+        languagesInput.split(',').map((code) => code.trim()).where((code) => code.isNotEmpty).toList();
+
+    if (languageCodes.isEmpty) {
+      _setBrightRed();
+      stderr.write('At least one valid language code is required.');
+      exit(2);
+    }
+
+    config[_languageCodes] = languageCodes;
+
     // Ask for localization method (including 'none' option)
     print('\nDo you want to generate Dart localization code?');
     print('1. Yes, using gen-l10n (Flutter built-in)');
@@ -392,7 +415,13 @@ class ArbTranslatorArgumentParser {
         // Add all configuration options
         config.forEach((key, value) {
           final configKey = key.startsWith('_') ? key.substring(1) : key;
-          modifiedLines.add('${' ' * (smartArbIndent + 2)}$configKey: $value');
+          if (value is List) {
+            // Handle list values (like language_codes)
+            final listItems = value.map((item) => '"$item"').join(', ');
+            modifiedLines.add('${' ' * (smartArbIndent + 2)}$configKey: [$listItems]');
+          } else {
+            modifiedLines.add('${' ' * (smartArbIndent + 2)}$configKey: $value');
+          }
         });
         continue;
       }
@@ -419,7 +448,13 @@ class ArbTranslatorArgumentParser {
       modifiedLines.add('smart_arb_translator:');
       config.forEach((key, value) {
         final configKey = key.startsWith('_') ? key.substring(1) : key;
-        modifiedLines.add('  $configKey: $value');
+        if (value is List) {
+          // Handle list values (like language_codes)
+          final listItems = value.map((item) => '"$item"').join(', ');
+          modifiedLines.add('  $configKey: [$listItems]');
+        } else {
+          modifiedLines.add('  $configKey: $value');
+        }
       });
     }
 
