@@ -1,6 +1,6 @@
 # Smart ARB Translator
 
-An intelligent command-line utility for translating ARB (Application Resource Bundle) files using Google Translate API. This package features smart change detection that only translates messages that have been added or changed. This will keep your translation costs to a minimum. A cost-saving end-to-end solution that translates your messages to Dart classes in the languages of your choice.
+A command-line utility for translating ARB (Application Resource Bundle) files using Google Translate API. This package features smart change detection that only translates messages that have been added or changed. This will keep your translation costs to a minimum. A cost-saving end-to-end solution that translates your messages to Dart classes in the languages of your choice.
 
 ## 🚀 Features
 
@@ -10,7 +10,8 @@ An intelligent command-line utility for translating ARB (Application Resource Bu
 - **🆕 Dual Localization Support**: Choose between Flutter's built-in `gen-l10n` or `intl_utils` package
 - **🤖 Auto-Configuration**: Automatically detects and configures your preferred localization method
 - **📝 Intelligent Setup**: Creates `l10n.yaml` or configures `pubspec.yaml` automatically
-- **🔧 Dart Code Generation**: Generate ready-to-use Dart localization code with either method
+- **🔧 Dart Code Generation**: Generate ready-to-use Dart localization code with either method or simply tranlate and use your own dart generator
+- **⚙️ Pubspec.yaml Configuration**: Configure all parameters directly in your `pubspec.yaml` file
 - **Stats**: Gives you full statistics on the number of translations made
 
 
@@ -28,7 +29,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dev_dependencies:
-  smart_arb_translator: ^1.0.1
+  smart_arb_translator: ^1.1.0
 ```
 
 Then run:
@@ -47,7 +48,27 @@ dart pub get
 4. Create credentials (API Key)
 5. Save your API key to a text file (e.g., `api_key.txt`)
 
-### 2. One-Command Translation + Code Generation
+### 2. Configure in pubspec.yaml (NEW!)
+
+Add your configuration directly to `pubspec.yaml`:
+
+```yaml
+# pubspec.yaml
+smart_arb_translator:
+  source_dir: lib/l10n
+  api_key: secrets/google_translate_api_key.txt
+  language_codes: [es, fr, de, ja]
+  generate_dart: true
+  dart_class_name: AppLocalizations
+```
+
+Then run without any arguments:
+
+```bash
+smart_arb_translator
+```
+
+### 3. One-Command Translation + Code Generation
 
 ```bash
 # Complete Flutter i18n workflow in one command
@@ -64,7 +85,7 @@ This single command will:
 - ✅ Generate type-safe Dart localization code
 - ✅ Set up everything for Flutter integration
 
-### 3. Use in Your Flutter App
+### 4. Use in Your Flutter App
 
 ```dart
 import 'lib/generated/l10n.dart';
@@ -116,6 +137,80 @@ Ensure your ARB files follow the standard format:
 
 ## 🎯 Usage
 
+### Configuration Methods
+
+Smart ARB Translator supports two configuration methods:
+
+1. **Command Line Arguments** (Traditional)
+2. **pubspec.yaml Configuration** (NEW! - Recommended)
+
+### pubspec.yaml Configuration (Recommended)
+
+Configure all parameters directly in your `pubspec.yaml` file under the `smart_arb_translator` section:
+
+```yaml
+# pubspec.yaml
+name: my_flutter_app
+description: My Flutter application
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  smart_arb_translator: ^1.1.0
+
+# Smart ARB Translator Configuration
+smart_arb_translator:
+  # Source configuration (choose one)
+  source_dir: lib/l10n                    # Directory containing ARB files
+  # source_arb: lib/l10n/app_en.arb       # Single ARB file (alternative)
+  
+  # Required: Google Translate API key
+  api_key: secrets/google_translate_api_key.txt
+  
+  # Target languages (multiple formats supported)
+  language_codes: [es, fr, de, it, pt, ja]  # YAML list format
+  # language_codes: "es,fr,de,it,pt,ja"    # Comma-separated string format
+  
+  # Output configuration
+  cache_directory: lib/l10n_cache          # Translation cache directory
+  l10n_directory: lib/l10n                 # Output directory for merged files
+  output_file_name: app                    # Prefix for output files
+  
+  # Dart code generation
+  generate_dart: true                      # Generate Dart localization code
+  dart_class_name: AppLocalizations        # Name for generated class
+  dart_output_dir: lib/generated           # Directory for generated Dart files
+  dart_main_locale: en                     # Main locale for code generation
+  
+  # Localization method (auto-detected if not specified)
+  l10n_method: gen-l10n                    # Options: "gen-l10n" or "intl_utils"
+  
+  # Automation
+  auto_approve: false                      # Auto-approve pubspec.yaml modifications
+```
+
+#### Benefits of pubspec.yaml Configuration:
+
+- ✅ **Version Control Friendly**: Configuration is committed with your code
+- ✅ **Team Consistency**: Everyone uses the same settings
+- ✅ **No Command Memorization**: Simple `smart_arb_translator` command
+- ✅ **IDE Integration**: Better tooling support
+- ✅ **Cleaner CI/CD**: Simplified build scripts
+
+#### Usage with pubspec.yaml:
+
+```bash
+# Simple command - all configuration from pubspec.yaml
+smart_arb_translator
+
+# Override specific parameters if needed
+smart_arb_translator --language_codes es,fr --generate_dart false
+
+# CLI arguments take precedence over pubspec.yaml settings
+```
+
 ### Command Line Interface
 
 #### Translate a Directory
@@ -153,22 +248,48 @@ smart_arb_translator \
 
 ### Command Line Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--source_dir` | Source directory containing ARB files | - |
-| `--source_arb` | Single ARB file to translate | - |
-| `--api_key` | Path to Google Translate API key file | **Required** |
-| `--language_codes` | Comma-separated target language codes | `es` |
-| `--cache_directory` | Directory for translation cache | `lib/l10n_cache` |
-| `--l10n_directory` | Output directory for merged files | `lib/l10n` |
-| `--output_file_name` | Custom output filename | `intl_` |
-| `--generate_dart` | Generate Dart localization code | `false` |
-| `--l10n_method` | Localization method: `gen-l10n` or `intl_utils` | Auto-detect |
-| `--dart_class_name` | Name for generated localization class | `S` |
-| `--dart_output_dir` | Directory for generated Dart files | `lib/generated` |
-| `--dart_main_locale` | Main locale for Dart code generation | `en` |
-| `--auto_approve` | Auto-approve configuration changes | `false` |
+All options can be configured in `pubspec.yaml` under the `smart_arb_translator` section. CLI arguments take precedence over pubspec.yaml settings.
 
+| Option | Description | Default | pubspec.yaml key |
+|--------|-------------|---------|------------------|
+| `--source_dir` | Source directory containing ARB files | - | `source_dir` |
+| `--source_arb` | Single ARB file to translate | - | `source_arb` |
+| `--api_key` | Path to Google Translate API key file | **Required** | `api_key` |
+| `--language_codes` | Comma-separated target language codes | `es` | `language_codes` |
+| `--cache_directory` | Directory for translation cache | `lib/l10n_cache` | `cache_directory` |
+| `--l10n_directory` | Output directory for merged files | `lib/l10n` | `l10n_directory` |
+| `--output_file_name` | Custom output filename | `intl_` | `output_file_name` |
+| `--generate_dart` | Generate Dart localization code | `false` | `generate_dart` |
+| `--l10n_method` | Localization method: `gen-l10n` or `intl_utils` | Auto-detect | `l10n_method` |
+| `--dart_class_name` | Name for generated localization class | `S` | `dart_class_name` |
+| `--dart_output_dir` | Directory for generated Dart files | `lib/generated` | `dart_output_dir` |
+| `--dart_main_locale` | Main locale for Dart code generation | `en` | `dart_main_locale` |
+| `--auto_approve` | Auto-approve configuration changes | `false` | `auto_approve` |
+
+
+### Configuration Precedence
+
+When both pubspec.yaml configuration and CLI arguments are provided, the precedence is:
+
+1. **CLI Arguments** (Highest priority)
+2. **pubspec.yaml Configuration**
+3. **Default Values** (Lowest priority)
+
+#### Example:
+
+```yaml
+# pubspec.yaml
+smart_arb_translator:
+  language_codes: [es, fr, de]
+  generate_dart: true
+```
+
+```bash
+# This command will use:
+# - language_codes: [it, pt] (from CLI - overrides pubspec.yaml)
+# - generate_dart: true (from pubspec.yaml)
+smart_arb_translator --language_codes it,pt
+```
 
 ### Programmatic Usage
 
@@ -176,6 +297,12 @@ smart_arb_translator \
 import 'package:smart_arb_translator/smart_arb_translator.dart';
 
 void main() async {
+  // Load configuration from pubspec.yaml
+  final config = PubspecConfig.loadFromPubspec();
+  if (config != null) {
+    print('Loaded config: ${config.sourceDir}');
+  }
+  
   // Create translation service
   final translationService = TranslationService();
   
@@ -347,7 +474,7 @@ All files will be processed recursively and organized in the output structure.
 ```yaml
 # pubspec.yaml
 dev_dependencies:
-  smart_arb_translator: ^1.0.1
+  smart_arb_translator: ^1.1.0
 
 flutter:
   generate: true

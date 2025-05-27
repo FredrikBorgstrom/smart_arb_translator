@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:args/args.dart';
 import 'package:console/console.dart';
+import 'pubspec_config.dart';
 
 class ArbTranslatorArgumentParser {
   static const _sourceArb = 'source_arb';
@@ -92,18 +93,73 @@ class ArbTranslatorArgumentParser {
       exit(0);
     }
 
-    if (!result.wasParsed(_sourceArb) && !result.wasParsed(_sourceDir)) {
+    // Load configuration from pubspec.yaml
+    final pubspecConfig = PubspecConfig.loadFromPubspec();
+
+    // Create merged configuration with CLI args taking precedence
+    final mergedResult = _mergeWithPubspecConfig(result, pubspecConfig);
+
+    // Validate required fields after merging
+    final hasSourceArb = mergedResult[_sourceArb] != null;
+    final hasSourceDir = mergedResult[_sourceDir] != null;
+
+    if (!hasSourceArb && !hasSourceDir) {
       _setBrightRed();
-      stderr.write('Either --source_arb or --source_dir is required.');
+      stderr.write(
+          'Either --source_arb or --source_dir is required (can be set in pubspec.yaml under smart_arb_translator section).');
       exit(2);
     }
 
-    if (!result.wasParsed(_apiKey)) {
+    if (mergedResult[_apiKey] == null) {
       _setBrightRed();
-      stderr.write('--api_key is required');
+      stderr.write('--api_key is required (can be set in pubspec.yaml under smart_arb_translator section)');
       exit(2);
     }
-    return result;
+
+    return mergedResult;
+  }
+
+  /// Merge command-line arguments with pubspec.yaml configuration
+  /// CLI arguments take precedence over pubspec.yaml settings
+  static ArgResults _mergeWithPubspecConfig(ArgResults cliResult, PubspecConfig? pubspecConfig) {
+    if (pubspecConfig == null || !pubspecConfig.hasAnyConfig) {
+      return cliResult;
+    }
+
+    // Create a new map with merged values
+    final Map<String, dynamic> mergedOptions = {};
+
+    // Start with pubspec config values
+    if (pubspecConfig.sourceArb != null) mergedOptions[_sourceArb] = pubspecConfig.sourceArb;
+    if (pubspecConfig.sourceDir != null) mergedOptions[_sourceDir] = pubspecConfig.sourceDir;
+    if (pubspecConfig.apiKey != null) mergedOptions[_apiKey] = pubspecConfig.apiKey;
+    if (pubspecConfig.cacheDirectory != null) mergedOptions[_cacheDirectory] = pubspecConfig.cacheDirectory;
+    if (pubspecConfig.languageCodes != null) mergedOptions[_languageCodes] = pubspecConfig.languageCodes;
+    if (pubspecConfig.outputFileName != null) mergedOptions[_outputFileName] = pubspecConfig.outputFileName;
+    if (pubspecConfig.l10nDirectory != null) mergedOptions[_l10nDirectory] = pubspecConfig.l10nDirectory;
+    if (pubspecConfig.generateDart != null) mergedOptions[_generateDart] = pubspecConfig.generateDart;
+    if (pubspecConfig.dartClassName != null) mergedOptions[_dartClassName] = pubspecConfig.dartClassName;
+    if (pubspecConfig.dartOutputDir != null) mergedOptions[_dartOutputDir] = pubspecConfig.dartOutputDir;
+    if (pubspecConfig.dartMainLocale != null) mergedOptions[_dartMainLocale] = pubspecConfig.dartMainLocale;
+    if (pubspecConfig.autoApprove != null) mergedOptions[_autoApprove] = pubspecConfig.autoApprove;
+    if (pubspecConfig.l10nMethod != null) mergedOptions[_l10nMethod] = pubspecConfig.l10nMethod;
+
+    // Override with CLI arguments (CLI takes precedence)
+    for (final option in cliResult.options) {
+      if (cliResult.wasParsed(option)) {
+        mergedOptions[option] = cliResult[option];
+      }
+    }
+
+    // Apply defaults for missing values
+    mergedOptions[_languageCodes] ??= ['es'];
+    mergedOptions[_outputFileName] ??= 'intl_';
+    mergedOptions[_generateDart] ??= true;
+    mergedOptions[_dartOutputDir] ??= 'lib/generated';
+    mergedOptions[_dartMainLocale] ??= 'en';
+    mergedOptions[_autoApprove] ??= false;
+
+    return _MergedArgResults(mergedOptions, cliResult);
   }
 
   static void _setBrightRed() {
@@ -126,4 +182,57 @@ class ArbTranslatorArgumentParser {
   static String get dartMainLocale => _dartMainLocale;
   static String get autoApprove => _autoApprove;
   static String get l10nMethod => _l10nMethod;
+}
+
+/// Custom ArgResults implementation that merges CLI args with pubspec.yaml config
+class _MergedArgResults implements ArgResults {
+  final Map<String, dynamic> _mergedOptions;
+  final ArgResults _originalResult;
+
+  _MergedArgResults(this._mergedOptions, this._originalResult);
+
+  @override
+  dynamic operator [](String name) => _mergedOptions[name];
+
+  @override
+  List<String> get arguments => _originalResult.arguments;
+
+  @override
+  ArgResults? get command => _originalResult.command;
+
+  @override
+  String? get name => _originalResult.name;
+
+  @override
+  Iterable<String> get options => _mergedOptions.keys;
+
+  @override
+  List<String> get rest => _originalResult.rest;
+
+  @override
+  bool wasParsed(String name) {
+    // Check if it was parsed from CLI or exists in merged options
+    return _originalResult.wasParsed(name) || _mergedOptions.containsKey(name);
+  }
+
+  @override
+  bool flag(String name) {
+    final value = _mergedOptions[name];
+    if (value is bool) return value;
+    return _originalResult.flag(name);
+  }
+
+  @override
+  List<String> multiOption(String name) {
+    final value = _mergedOptions[name];
+    if (value is List<String>) return value;
+    return _originalResult.multiOption(name);
+  }
+
+  @override
+  String? option(String name) {
+    final value = _mergedOptions[name];
+    if (value is String) return value;
+    return _originalResult.option(name);
+  }
 }

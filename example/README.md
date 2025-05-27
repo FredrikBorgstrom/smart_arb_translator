@@ -301,3 +301,84 @@ smart_arb_translator \
 ---
 
 **Ready to revolutionize your Flutter i18n workflow?** 🚀✨ 
+
+## pubspec.yaml Configuration Example
+
+The `pubspec_config_example.yaml` file shows how to configure all Smart ARB Translator parameters directly in your `pubspec.yaml` file.
+
+### Benefits of pubspec.yaml Configuration:
+
+- ✅ **Version Control Friendly**: Configuration is committed with your code
+- ✅ **Team Consistency**: Everyone uses the same settings
+- ✅ **No Command Memorization**: Simple `smart_arb_translator` command
+- ✅ **IDE Integration**: Better tooling support
+- ✅ **Cleaner CI/CD**: Simplified build scripts
+
+### Usage:
+
+1. Copy the configuration from `pubspec_config_example.yaml` to your project's `pubspec.yaml`
+2. Modify the values to match your project structure
+3. Run the simple command:
+
+```bash
+smart_arb_translator
+```
+
+### Configuration Options:
+
+All CLI parameters can be configured in the `smart_arb_translator` section:
+
+```yaml
+smart_arb_translator:
+  # Source configuration (choose one)
+  source_dir: lib/l10n                    # Directory containing ARB files
+  source_arb: lib/l10n/app_en.arb         # Single ARB file (alternative)
+  
+  # Required: Google Translate API key
+  api_key: secrets/google_translate_api_key.txt
+  
+  # Target languages (multiple formats supported)
+  language_codes: [es, fr, de, it, pt, ja]  # YAML list format
+  language_codes: "es,fr,de,it,pt,ja"      # Comma-separated string format
+  
+  # Output configuration
+  cache_directory: lib/l10n_cache          # Translation cache directory
+  l10n_directory: lib/l10n                 # Output directory for merged files
+  output_file_name: app                    # Prefix for output files
+  
+  # Dart code generation
+  generate_dart: true                      # Generate Dart localization code
+  dart_class_name: AppLocalizations        # Name for generated class
+  dart_output_dir: lib/generated           # Directory for generated Dart files
+  dart_main_locale: en                     # Main locale for code generation
+  
+  # Localization method (auto-detected if not specified)
+  l10n_method: gen-l10n                    # Options: "gen-l10n" or "intl_utils"
+  
+  # Automation
+  auto_approve: false                      # Auto-approve pubspec.yaml modifications
+```
+
+### Configuration Precedence:
+
+When both pubspec.yaml configuration and CLI arguments are provided:
+
+1. **CLI Arguments** (Highest priority)
+2. **pubspec.yaml Configuration**
+3. **Default Values** (Lowest priority)
+
+### Example Override:
+
+```yaml
+# pubspec.yaml
+smart_arb_translator:
+  language_codes: [es, fr, de]
+  generate_dart: true
+```
+
+```bash
+# This command will use:
+# - language_codes: [it, pt] (from CLI - overrides pubspec.yaml)
+# - generate_dart: true (from pubspec.yaml)
+smart_arb_translator --language_codes it,pt
+``` 

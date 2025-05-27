@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Whenever a task has been completed successfully that results in some code change or addition, then increase the version in pubspec according to semantic versioning and update the changelog with the changes that were made.

@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2024-12-19
+
+### Added
+- ⚙️ **pubspec.yaml Configuration Support**: Configure all parameters directly in your `pubspec.yaml` file under the `smart_arb_translator` section
+- 📋 **Complete Parameter Coverage**: All CLI arguments can now be set in pubspec.yaml configuration
+- 🔄 **Configuration Precedence System**: CLI arguments take precedence over pubspec.yaml settings, which take precedence over defaults
+- 🎯 **Flexible Language Code Formats**: Support for both YAML list format (`[es, fr, de]`) and comma-separated strings (`"es,fr,de"`)
+- 🛡️ **Graceful Error Handling**: Robust handling of malformed YAML configurations
+- 📚 **Comprehensive Documentation**: Updated README with configuration examples and best practices
+- 🧪 **Full Test Coverage**: 13 new tests covering pubspec configuration and argument parser integration
+
+### Enhanced
+- 🔧 **Developer Experience**: Simple `smart_arb_translator` command when using pubspec.yaml configuration
+- 👥 **Team Consistency**: Version-controlled configuration ensures all team members use the same settings
+- 🚀 **CI/CD Integration**: Simplified build scripts with configuration stored in pubspec.yaml
+- 🔄 **Backward Compatibility**: Existing CLI usage continues to work unchanged
+- 📖 **IDE Support**: Better tooling integration with YAML configuration
+
+### Technical Details
+- **New Classes**:
+  - `PubspecConfig`: Handles reading and parsing pubspec.yaml configuration
+  - `_MergedArgResults`: Custom ArgResults implementation for merging CLI and pubspec settings
+- **Configuration Options**: All 13 CLI parameters now supported in pubspec.yaml:
+  - `source_dir` / `source_arb`: Source configuration
+  - `api_key`: Google Translate API key path
+  - `language_codes`: Target languages (list or comma-separated)
+  - `cache_directory` / `l10n_directory`: Directory configuration
+  - `output_file_name`: Output file naming
+  - `generate_dart` / `dart_class_name` / `dart_output_dir` / `dart_main_locale`: Dart generation
+  - `l10n_method`: Localization method selection
+  - `auto_approve`: Automation settings
+
+### Usage Examples
+```yaml
+# pubspec.yaml
+smart_arb_translator:
+  source_dir: lib/l10n
+  api_key: secrets/google_translate_api_key.txt
+  language_codes: [es, fr, de, ja]
+  generate_dart: true
+  dart_class_name: AppLocalizations
+```
+
+```bash
+# Simple command - all configuration from pubspec.yaml
+smart_arb_translator
+
+# Override specific parameters if needed
+smart_arb_translator --language_codes it,pt --generate_dart false
+```
+
+### Benefits
+- ✅ **Version Control Friendly**: Configuration committed with your code
+- ✅ **Team Consistency**: Everyone uses the same settings
+- ✅ **No Command Memorization**: Simple command execution
+- ✅ **IDE Integration**: Better tooling support
+- ✅ **Cleaner CI/CD**: Simplified build scripts
+
 ## [1.0.1] - 2024-05-26
 
 ### Added

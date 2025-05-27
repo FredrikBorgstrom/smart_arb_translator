@@ -26,6 +26,7 @@ export 'src/models/arb_attributes.dart';
 // Model exports
 export 'src/models/arb_document.dart';
 export 'src/models/arb_resource.dart';
+export 'src/pubspec_config.dart';
 export 'src/single_file_processor.dart';
 // Core functionality exports
 export 'src/translation_service.dart';

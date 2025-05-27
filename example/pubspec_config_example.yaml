@@ -1,0 +1,51 @@
+name: my_flutter_app
+description: A Flutter app with smart ARB translation configuration
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.1 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  smart_arb_translator: ^1.1.0
+  flutter_lints: ^2.0.0
+
+# Smart ARB Translator Configuration
+# All CLI parameters can be configured here
+smart_arb_translator:
+  # Source configuration (choose one)
+  source_dir: lib/l10n                    # Directory containing ARB files
+  # source_arb: lib/l10n/app_en.arb       # Single ARB file (alternative to source_dir)
+  
+  # Required: Google Translate API key
+  api_key: secrets/google_translate_api_key.txt
+  
+  # Target languages (multiple formats supported)
+  language_codes: [es, fr, de, it, pt, ja]  # YAML list format
+  # language_codes: "es,fr,de,it,pt,ja"    # Comma-separated string format
+  
+  # Output configuration
+  cache_directory: lib/l10n_cache          # Translation cache directory
+  l10n_directory: lib/l10n                 # Output directory for merged files
+  output_file_name: app                    # Prefix for output files (app_es.arb, app_fr.arb, etc.)
+  
+  # Dart code generation
+  generate_dart: true                      # Generate Dart localization code
+  dart_class_name: AppLocalizations        # Name for generated class
+  dart_output_dir: lib/generated           # Directory for generated Dart files
+  dart_main_locale: en                     # Main locale for code generation
+  
+  # Localization method (auto-detected if not specified)
+  l10n_method: gen-l10n                    # Options: "gen-l10n" or "intl_utils"
+  
+  # Automation
+  auto_approve: false                      # Auto-approve pubspec.yaml modifications
+
+flutter:
+  uses-material-design: true 
