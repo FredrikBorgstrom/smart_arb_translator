@@ -187,14 +187,14 @@ class IcuParser {
   List<Token> parse(String message) {
     final parsed = (placeholderText.token() | justText.token() | pluralOrGenderOrSelectContents).parse(message);
 
-    if (parsed.isFailure) {
-      print('Failed to parse: $message');
-      print(parsed.message);
-      throw Exception('parsing failed');
-    } else {
-      final parsedValue = parsed.value;
-      print('Parsed: $parsedValue');
-      return parsedValue is List ? List<Token>.from(parsedValue) : [parsedValue as Token];
+    switch (parsed) {
+      case Failure(message: final message, position: final position):
+        print('Failed to parse: $message');
+        print('Error at position $position: $message');
+        throw Exception('parsing failed');
+      case Success(value: final parsedValue):
+        print('Parsed: $parsedValue');
+        return parsedValue is List ? List<Token>.from(parsedValue) : [parsedValue as Token];
     }
   }
 
