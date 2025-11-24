@@ -13,7 +13,17 @@ Future<void> main(List<String> args) async {
 
     // Extract common parameters
     final languageCodes = result[ArbTranslatorArgumentParser.languageCodes] as List<String>;
-    final apiKey = result[ArbTranslatorArgumentParser.apiKey] as String;
+    var apiKey = result[ArbTranslatorArgumentParser.apiKey] as String;
+
+    // Check if apiKey is a file path and read it if so
+    if (File(apiKey).existsSync()) {
+      try {
+        apiKey = File(apiKey).readAsStringSync().trim();
+      } catch (e) {
+        print('Warning: Could not read API key file: $e');
+        // Continue with original value, it might be the key itself
+      }
+    }
     final generateDart = result[ArbTranslatorArgumentParser.generateDart] as bool? ?? false;
     final dartClassName = result[ArbTranslatorArgumentParser.dartClassName] as String?;
     final dartOutputDir = result[ArbTranslatorArgumentParser.dartOutputDir] as String? ?? 'lib/generated';
