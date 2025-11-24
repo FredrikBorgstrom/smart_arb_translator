@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.7] - 2025-11-24
+
+### Fixed
+- 🐛 **Empty Prefix Support**: Fixed issue where empty `output_file_name` would default to source filename prefixing. Now generates `{languageCode}.arb` as expected.
+- 🔧 **Double Underscore Fix**: Fixed issue where default configuration could result in double underscores in filenames (e.g., `intl__fr.arb`).
+
 ## [1.3.6] - 2025-09-14
 
 ### Fixed

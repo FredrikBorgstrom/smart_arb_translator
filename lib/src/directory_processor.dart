@@ -167,14 +167,16 @@ class DirectoryProcessor {
 
     for (final arbFile in arbFiles) {
       final fileName = path.basename(arbFile.path);
-      final fileNameWithoutExt = path.basenameWithoutExtension(fileName);
+
       final fileExt = path.extension(fileName);
 
       for (final languageCode in languageCodes) {
         final langOutputDir = path.join(effectiveOutputPath, languageCode);
         final langOutputFileName = outputFileName.isEmpty
-            ? '${fileNameWithoutExt}_$languageCode$fileExt'
-            : '${outputFileName}_$languageCode$fileExt';
+            ? '$languageCode$fileExt'
+            : outputFileName.endsWith('_')
+                ? '$outputFileName$languageCode$fileExt'
+                : '${outputFileName}_$languageCode$fileExt';
 
         final relativePath = path.relative(arbFile.path, from: workingSourcePath);
         final previousDocument = previousSourceFiles[relativePath];

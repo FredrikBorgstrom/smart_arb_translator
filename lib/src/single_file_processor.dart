@@ -132,8 +132,9 @@ class SingleFileProcessor {
 
     for (final languageCode in languageCodes) {
       // Construct proper output filename with language code and extension
+      // Construct proper output filename with language code and extension
       final finalOutputFileName = outputFileName.isEmpty
-          ? '${sourceFileNameWithoutExt}_$languageCode$sourceFileExt'
+          ? '$languageCode.arb'
           : outputFileName.endsWith('.arb')
               ? '${outputFileName.substring(0, outputFileName.length - 4)}_$languageCode.arb'
               : '$outputFileName$languageCode.arb';
