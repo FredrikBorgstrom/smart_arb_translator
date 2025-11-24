@@ -35,6 +35,8 @@ class ArbTranslatorArgumentParser {
   static const _autoApprove = 'auto_approve';
   static const _l10nMethod = 'l10n_method';
   static const _useDeferredLoading = 'use_deferred_loading';
+  static const _translationService = 'translation_service';
+  static const _projectId = 'project_id';
 
   /// Initializes and configures the argument parser.
   ///
@@ -107,6 +109,16 @@ class ArbTranslatorArgumentParser {
         _useDeferredLoading,
         help: 'enable deferred loading for locales (primarily for Flutter Web to reduce initial bundle size)',
         defaultsTo: false,
+      )
+      ..addOption(
+        _translationService,
+        help: 'translation service to use: "google_basic" (v2), "google_nmt" (v2 with model=nmt), or "google_llm" (v3)',
+        allowed: ['google_basic', 'google_nmt', 'google_llm'],
+        defaultsTo: 'google_basic',
+      )
+      ..addOption(
+        _projectId,
+        help: 'Google Cloud Project ID (required for "llm" service)',
       );
 
     return parser;
@@ -229,7 +241,10 @@ class ArbTranslatorArgumentParser {
     if (pubspecConfig.dartMainLocale != null) mergedOptions[_dartMainLocale] = pubspecConfig.dartMainLocale;
     if (pubspecConfig.autoApprove != null) mergedOptions[_autoApprove] = pubspecConfig.autoApprove;
     if (pubspecConfig.l10nMethod != null) mergedOptions[_l10nMethod] = pubspecConfig.l10nMethod;
+    if (pubspecConfig.l10nMethod != null) mergedOptions[_l10nMethod] = pubspecConfig.l10nMethod;
     if (pubspecConfig.useDeferredLoading != null) mergedOptions[_useDeferredLoading] = pubspecConfig.useDeferredLoading;
+    if (pubspecConfig.translationService != null) mergedOptions[_translationService] = pubspecConfig.translationService;
+    if (pubspecConfig.projectId != null) mergedOptions[_projectId] = pubspecConfig.projectId;
 
     // Override with CLI arguments (CLI takes precedence)
     for (final option in cliResult.options) {
@@ -246,6 +261,7 @@ class ArbTranslatorArgumentParser {
     mergedOptions[_dartMainLocale] ??= 'en';
     mergedOptions[_autoApprove] ??= false;
     mergedOptions[_useDeferredLoading] ??= false;
+    mergedOptions[_translationService] ??= 'google_basic';
 
     return _MergedArgResults(mergedOptions, cliResult);
   }
@@ -306,6 +322,40 @@ class ArbTranslatorArgumentParser {
       exit(2);
     }
     config[_apiKey] = apiKeyInput;
+
+    // Ask for translation service
+    print('\nWhich translation service do you want to use?');
+    print('1. Google Basic (v2) - Default');
+    print('   - Standard translation service');
+    print('2. Google NMT (v2 with model=nmt)');
+    print('   - Neural Machine Translation model');
+    print('3. Google LLM (v3)');
+    print('   - Large Language Model translation (requires Project ID)');
+    print('');
+    print('Enter your choice (1, 2, or 3) [default: 1]: ');
+
+    final serviceInput = stdin.readLineSync()?.trim() ?? '';
+    String service = 'google_basic';
+
+    if (serviceInput == '2') {
+      service = 'google_nmt';
+    } else if (serviceInput == '3') {
+      service = 'google_llm';
+    }
+
+    config[_translationService] = service;
+
+    // Ask for Project ID if LLM is selected
+    if (service == 'google_llm') {
+      print('\nEnter your Google Cloud Project ID (required for LLM service): ');
+      final projectIdInput = stdin.readLineSync()?.trim() ?? '';
+      if (projectIdInput.isEmpty) {
+        _setBrightRed();
+        stderr.write('Project ID is required for LLM service.');
+        exit(2);
+      }
+      config[_projectId] = projectIdInput;
+    }
 
     // Ask for cache directory
     print('\nEnter the cache directory for translations (default: lib/l10n_cache): ');
@@ -478,7 +528,9 @@ class ArbTranslatorArgumentParser {
       'dart_main_locale:',
       'auto_approve:',
       'l10n_method:',
-      'use_deferred_loading:'
+      'use_deferred_loading:',
+      'translation_service:',
+      'project_id:'
     ];
     return configKeys.any((key) => trimmedLine.startsWith(key));
   }
@@ -540,6 +592,8 @@ class ArbTranslatorArgumentParser {
   static String get autoApprove => _autoApprove;
   static String get l10nMethod => _l10nMethod;
   static String get useDeferredLoading => _useDeferredLoading;
+  static String get translationService => _translationService;
+  static String get projectId => _projectId;
 }
 
 /// Custom ArgResults implementation that merges CLI args with pubspec.yaml config

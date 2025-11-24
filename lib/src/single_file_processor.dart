@@ -96,6 +96,8 @@ class SingleFileProcessor {
     bool autoApprove = false,
     String? l10nMethod,
     bool useDeferredLoading = false,
+    String translationService = 'google_basic',
+    String? projectId,
   }) async {
     dartClassName ??= (l10nMethod == 'gen-l10n') ? 'AppLocalizations' : 'S';
     final arbFile = FileOperations.createFileRef(sourceArb);
@@ -148,6 +150,8 @@ class SingleFileProcessor {
         finalOutputFileName,
         previousSourceDocument,
         statistics,
+        translationService: translationService,
+        projectId: projectId,
       );
     }
 
@@ -251,8 +255,10 @@ class SingleFileProcessor {
     String outputDirectory,
     String outputFileName,
     ArbDocument? previousSourceDocument,
-    TranslationStatistics? statistics,
-  ) async {
+    TranslationStatistics? statistics, {
+    String translationService = 'google_basic',
+    String? projectId,
+  }) async {
     final sourceArbFile = File(sourceArbPath);
     final sourceContent = sourceArbFile.readAsStringSync();
     final sourceDocument = ArbDocument.decode(sourceContent);
@@ -345,6 +351,8 @@ class SingleFileProcessor {
           return TranslationService.translateTexts(
             translateList: list.map((action) => action.text).toList(),
             parameters: <String, dynamic>{'target': languageCode, 'key': apiKey},
+            translationService: translationService,
+            projectId: projectId,
           );
         }).toList();
 

@@ -125,6 +125,8 @@ class ArbProcessor {
     required String outputDirectory,
     required String outputFileName,
     required String apiKey,
+    String translationService = 'google_basic',
+    String? projectId,
   }) async {
     var newArbDocument = arbDocument.copyWith(locale: languageCode);
 
@@ -132,6 +134,8 @@ class ArbProcessor {
       return TranslationService.translateTexts(
         translateList: list.map((action) => action.text).toList(),
         parameters: <String, dynamic>{'target': languageCode, 'key': apiKey},
+        translationService: translationService,
+        projectId: projectId,
       );
     }).toList();
 

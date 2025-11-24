@@ -21,6 +21,8 @@ Future<void> main(List<String> args) async {
     final autoApprove = result[ArbTranslatorArgumentParser.autoApprove] as bool? ?? false;
     final l10nMethod = result[ArbTranslatorArgumentParser.l10nMethod] as String?;
     final useDeferredLoading = result[ArbTranslatorArgumentParser.useDeferredLoading] as bool? ?? false;
+    final translationService = result[ArbTranslatorArgumentParser.translationService] as String? ?? 'google_basic';
+    final projectId = result[ArbTranslatorArgumentParser.projectId] as String?;
 
     // Determine processing mode
     final sourceArb = result[ArbTranslatorArgumentParser.sourceArb] as String?;
@@ -44,6 +46,8 @@ Future<void> main(List<String> args) async {
         autoApprove: autoApprove,
         l10nMethod: l10nMethod,
         useDeferredLoading: useDeferredLoading,
+        translationService: translationService,
+        projectId: projectId,
       );
     } else if (sourceDir != null) {
       // Directory processing
@@ -65,6 +69,8 @@ Future<void> main(List<String> args) async {
         autoApprove: autoApprove,
         l10nMethod: l10nMethod,
         useDeferredLoading: useDeferredLoading,
+        translationService: translationService,
+        projectId: projectId,
       );
     }
 

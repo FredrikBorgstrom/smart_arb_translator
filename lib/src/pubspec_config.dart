@@ -61,6 +61,12 @@ class PubspecConfig {
   /// Whether to enable deferred loading for locales.
   final bool? useDeferredLoading;
 
+  /// The translation service to use ('basic', 'nmt', or 'llm').
+  final String? translationService;
+
+  /// The Google Cloud Project ID (required for 'llm' service).
+  final String? projectId;
+
   /// Creates a new pubspec configuration instance.
   ///
   /// All parameters are optional and correspond to the configuration
@@ -80,6 +86,8 @@ class PubspecConfig {
     this.autoApprove,
     this.l10nMethod,
     this.useDeferredLoading,
+    this.translationService,
+    this.projectId,
   });
 
   /// Loads configuration from a pubspec.yaml file.
@@ -135,6 +143,8 @@ class PubspecConfig {
         autoApprove: config['auto_approve'] as bool?,
         l10nMethod: config['l10n_method'] as String?,
         useDeferredLoading: config['use_deferred_loading'] as bool?,
+        translationService: config['translation_service'] as String?,
+        projectId: config['project_id'] as String?,
       );
     } catch (e) {
       // If there's any error reading the config, return null
@@ -193,7 +203,9 @@ class PubspecConfig {
         dartMainLocale != null ||
         autoApprove != null ||
         l10nMethod != null ||
-        useDeferredLoading != null;
+        useDeferredLoading != null ||
+        translationService != null ||
+        projectId != null;
   }
 
   /// Returns a string representation of this configuration.
@@ -216,7 +228,9 @@ class PubspecConfig {
         'dartMainLocale: $dartMainLocale, '
         'autoApprove: $autoApprove, '
         'l10nMethod: $l10nMethod, '
-        'useDeferredLoading: $useDeferredLoading'
+        'useDeferredLoading: $useDeferredLoading, '
+        'translationService: $translationService, '
+        'projectId: $projectId'
         ')';
   }
 }

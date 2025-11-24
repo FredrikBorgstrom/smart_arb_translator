@@ -103,6 +103,8 @@ class DirectoryProcessor {
     bool autoApprove = false,
     String? l10nMethod,
     bool useDeferredLoading = false,
+    String translationService = 'google_basic',
+    String? projectId,
   }) async {
     dartClassName ??= (l10nMethod == 'gen-l10n') ? 'AppLocalizations' : 'S';
 
@@ -189,6 +191,8 @@ class DirectoryProcessor {
           langOutputFileName,
           previousDocument,
           statistics,
+          translationService: translationService,
+          projectId: projectId,
         );
       }
     }

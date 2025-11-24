@@ -34,22 +34,41 @@ class TranslationService {
   static Future<List<String>> translateTexts({
     required List<String> translateList,
     required Map<String, dynamic> parameters,
+    String translationService = 'google_basic',
+    String? projectId,
+    http.Client? client,
+  }) async {
+    switch (translationService) {
+      case 'google_nmt':
+        return _translateWithNMT(translateList, parameters, client: client);
+      case 'google_llm':
+        if (projectId == null) {
+          throw ArgumentError('Project ID is required for LLM translation service');
+        }
+        return _translateWithLLM(translateList, parameters, projectId, client: client);
+      case 'google_basic':
+      default:
+        return _translateWithBasic(translateList, parameters, client: client);
+    }
+  }
+
+  static Future<List<String>> _translateWithBasic(
+    List<String> translateList,
+    Map<String, dynamic> parameters, {
+    http.Client? client,
   }) async {
     final translated = <String>[];
-
     parameters['q'] = translateList;
 
     final url = Uri.parse('https://translation.googleapis.com/language/translate/v2')
         .resolveUri(Uri(queryParameters: parameters));
 
-    final data = await http.get(url);
+    final data = await (client?.get(url) ?? http.get(url));
 
     if (data.statusCode != 200) {
       throw http.ClientException('Error ${data.statusCode}: ${data.body}', url);
     } else {
-      // TO DO: We should use `googleapis` to deserialize this. We might also use translate v3.
       final jsonData = jsonDecode(data.body) as Map<String, dynamic>;
-
       final translations = List<Map<String, dynamic>>.from(
         jsonData['data']['translations'] as Iterable,
       );
@@ -62,6 +81,74 @@ class TranslationService {
     }
 
     return translated;
+  }
+
+  static Future<List<String>> _translateWithNMT(
+    List<String> translateList,
+    Map<String, dynamic> parameters, {
+    http.Client? client,
+  }) async {
+    // NMT uses the same v2 API but with model=nmt
+    final nmtParameters = Map<String, dynamic>.from(parameters);
+    nmtParameters['model'] = 'nmt';
+    return _translateWithBasic(translateList, nmtParameters, client: client);
+  }
+
+  static Future<List<String>> _translateWithLLM(
+    List<String> translateList,
+    Map<String, dynamic> parameters,
+    String projectId, {
+    http.Client? client,
+  }) async {
+    // LLM uses the v3 API
+    // Endpoint: https://translation.googleapis.com/v3/projects/{project-id}/locations/global:translateText
+
+    final apiKey = parameters['key'] as String;
+    final targetLanguage = parameters['target'] as String;
+    // v3 uses 'sourceLanguageCode' and 'targetLanguageCode' instead of 'source' and 'target'
+    // But 'source' is optional in v2 and often inferred. If we have it, we should pass it.
+    // The current implementation doesn't seem to pass 'source' explicitly in parameters usually,
+    // but if it's there, we use it.
+
+    final url = Uri.parse(
+        'https://translation.googleapis.com/v3/projects/$projectId/locations/global:translateText?key=$apiKey');
+
+    final body = {
+      'contents': translateList,
+      'targetLanguageCode': targetLanguage,
+      'mimeType': 'text/html', // We use HTML for safety in ArbProcessor
+    };
+
+    if (parameters.containsKey('source')) {
+      body['sourceLanguageCode'] = parameters['source'] as String;
+    }
+
+    // For "LLM" quality, we might want to specify a model if available,
+    // but standard v3 is already NMT/Advanced.
+    // If there's a specific model for LLM, we'd add it here.
+    // For now, v3 is the "advanced" option.
+
+    final response = await (client?.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        ) ??
+        http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        ));
+
+    if (response.statusCode != 200) {
+      throw http.ClientException('Error ${response.statusCode}: ${response.body}', url);
+    }
+
+    final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
+    final translations = List<Map<String, dynamic>>.from(
+      jsonData['translations'] as Iterable,
+    );
+
+    return translations.map((t) => t['translatedText'] as String).toList();
   }
 
   /// Inserts manual translations from ARB document attributes into translation results.

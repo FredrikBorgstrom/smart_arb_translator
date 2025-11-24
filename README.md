@@ -12,6 +12,7 @@ A command-line utility for translating ARB (Application Resource Bundle) files u
 - **📝 Intelligent Setup**: Creates `l10n.yaml` or configures `pubspec.yaml` automatically
 - **🔧 Dart Code Generation**: Generate ready-to-use Dart localization code with either method or simply translate and use your own dart generator
 - **⚙️ Pubspec.yaml Configuration**: Configure all parameters directly in your `pubspec.yaml` file
+- **🆕 Translation Services**: Support for Google Translate v2 (Basic & NMT) and v3 (LLM)
 - **Stats**: Gives you full statistics on the number of translations made
 
 
@@ -83,6 +84,16 @@ Enter the directory path containing your ARB files (default: lib/l10n_source):
 What is the locale of your source files? (default: en): 
 
 Enter the path to your Google Translate API key file: secrets/api_key.txt
+
+Which translation service do you want to use?
+1. Google Basic (v2) - Default
+   - Standard translation service
+2. Google NMT (v2 with model=nmt)
+   - Neural Machine Translation model
+3. Google LLM (v3)
+   - Large Language Model translation (requires Project ID)
+
+Enter your choice (1, 2, or 3) [default: 1]: 1
 
 Enter the cache directory for translations (default: lib/l10n_cache): 
 
@@ -238,6 +249,10 @@ smart_arb_translator:
   # Localization method (auto-detected if not specified)
   l10n_method: gen-l10n                    # Options: "gen-l10n", "intl_utils", or "none"
   
+  # Translation Service Configuration (NEW!)
+  translation_service: google_basic          # Options: "google_basic" (v2), "google_nmt" (v2), "google_llm" (v3)
+  project_id: my-gcp-project-id              # Required for "google_llm" service
+  
   # Automation
   auto_approve: false                      # Auto-approve pubspec.yaml modifications
 ```
@@ -317,6 +332,8 @@ All options can be configured in `pubspec.yaml` under the `smart_arb_translator`
 | `--dart_main_locale` | Main locale for Dart code generation | `en` | `dart_main_locale` |
 | `--auto_approve` | Auto-approve configuration changes | `false` | `auto_approve` |
 | `--use_deferred_loading` | Enable deferred loading for locales (Flutter Web optimization) | `false` | `use_deferred_loading` |
+| `--translation_service` | Translation service: `google_basic`, `google_nmt`, or `google_llm` | `google_basic` | `translation_service` |
+| `--project_id` | Google Cloud Project ID (required for `google_llm`) | - | `project_id` |
 
 
 ### Configuration Precedence

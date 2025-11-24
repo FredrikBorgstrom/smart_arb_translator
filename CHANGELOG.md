@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2025-11-24
+
+### Added
+- 🆕 **Expanded Translation Services**: Added support for Google Translate v3 (LLM) and v2 NMT models.
+- ⚙️ **New Configuration Options**:
+  - `translation_service`: Choose between `google_basic` (default), `google_nmt`, or `google_llm`.
+  - `project_id`: Required when using `google_llm` service.
+- 🔄 **Service Selection**: Users can now select the specific translation model that best fits their needs (cost vs. quality).
+
+### Changed
+- 🔧 **Default Service**: The default translation service is now explicitly named `google_basic` (maintains v2 API behavior).
+- 📝 **Documentation**: Updated README with details on new translation services and configuration examples.
+
 ## [1.3.7] - 2025-11-24
 
 ### Fixed
