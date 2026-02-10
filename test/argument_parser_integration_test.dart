@@ -116,6 +116,7 @@ smart_arb_translator:
       expect(result[ArbTranslatorArgumentParser.dartMainLocale], equals('en'));
       expect(result[ArbTranslatorArgumentParser.autoApprove], isFalse);
       expect(result[ArbTranslatorArgumentParser.useDeferredLoading], isFalse);
+      expect(result[ArbTranslatorArgumentParser.authMode], equals('api_key'));
     });
 
     test('should handle comma-separated language codes from pubspec', () async {
@@ -174,6 +175,46 @@ smart_arb_translator:
         '--use_deferred_loading',
       ]);
       expect(result[ArbTranslatorArgumentParser.useDeferredLoading], isTrue);
+    });
+
+    test('should allow google_llm with adc auth mode without api_key', () async {
+      tempPubspec.writeAsStringSync('''
+name: test_app
+version: 1.0.0
+
+smart_arb_translator:
+  source_dir: lib/l10n
+  translation_service: google_llm
+  project_id: my-project
+  auth_mode: adc
+''');
+
+      final result = await ArbTranslatorArgumentParser.parseArguments([]);
+      expect(result[ArbTranslatorArgumentParser.translationService], equals('google_llm'));
+      expect(result[ArbTranslatorArgumentParser.projectId], equals('my-project'));
+      expect(result[ArbTranslatorArgumentParser.authMode], equals('adc'));
+      expect(result[ArbTranslatorArgumentParser.apiKey], isNull);
+    });
+
+    test('should allow google_llm with service_account auth mode and credentials file without api_key', () async {
+      tempPubspec.writeAsStringSync('''
+name: test_app
+version: 1.0.0
+
+smart_arb_translator:
+  source_dir: lib/l10n
+  translation_service: google_llm
+  project_id: my-project
+  auth_mode: service_account
+  credentials_file: secrets/service-account.json
+''');
+
+      final result = await ArbTranslatorArgumentParser.parseArguments([]);
+      expect(result[ArbTranslatorArgumentParser.translationService], equals('google_llm'));
+      expect(result[ArbTranslatorArgumentParser.projectId], equals('my-project'));
+      expect(result[ArbTranslatorArgumentParser.authMode], equals('service_account'));
+      expect(result[ArbTranslatorArgumentParser.credentialsFile], equals('secrets/service-account.json'));
+      expect(result[ArbTranslatorArgumentParser.apiKey], isNull);
     });
   });
 }

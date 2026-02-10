@@ -127,6 +127,9 @@ class ArbProcessor {
     required String apiKey,
     String translationService = 'google_basic',
     String? projectId,
+    String authMode = 'api_key',
+    String? credentialsFile,
+    String? quotaProjectId,
   }) async {
     var newArbDocument = arbDocument.copyWith(locale: languageCode);
 
@@ -136,6 +139,9 @@ class ArbProcessor {
         parameters: <String, dynamic>{'target': languageCode, 'key': apiKey},
         translationService: translationService,
         projectId: projectId,
+        authMode: authMode,
+        credentialsFile: credentialsFile,
+        quotaProjectId: quotaProjectId,
       );
     }).toList();
 

@@ -13,7 +13,7 @@
 /// dart pub global activate smart_arb_translator
 /// smart_arb_translator --source_dir lib/l10n --api_key path/to/api_key.txt --language_codes es,fr,de --generate_dart
 /// ```
-library smart_arb_translator;
+library;
 
 export 'src/arb_processor.dart';
 export 'src/argument_parser.dart';

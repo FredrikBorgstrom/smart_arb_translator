@@ -67,6 +67,23 @@ class PubspecConfig {
   /// The Google Cloud Project ID (required for 'llm' service).
   final String? projectId;
 
+  /// Authentication mode for translation API requests.
+  ///
+  /// - `api_key`: Uses API key query parameter authentication.
+  /// - `adc`: Uses Application Default Credentials (OAuth2).
+  /// - `service_account`: Uses a service account JSON key file (OAuth2).
+  final String? authMode;
+
+  /// Optional path to a service account JSON file.
+  ///
+  /// Used when [authMode] is `service_account`.
+  final String? credentialsFile;
+
+  /// Optional quota/billing project id for OAuth requests.
+  ///
+  /// Mapped to the `x-goog-user-project` header.
+  final String? quotaProjectId;
+
   /// Creates a new pubspec configuration instance.
   ///
   /// All parameters are optional and correspond to the configuration
@@ -88,6 +105,9 @@ class PubspecConfig {
     this.useDeferredLoading,
     this.translationService,
     this.projectId,
+    this.authMode,
+    this.credentialsFile,
+    this.quotaProjectId,
   });
 
   /// Loads configuration from a pubspec.yaml file.
@@ -145,6 +165,9 @@ class PubspecConfig {
         useDeferredLoading: config['use_deferred_loading'] as bool?,
         translationService: config['translation_service'] as String?,
         projectId: config['project_id'] as String?,
+        authMode: config['auth_mode'] as String?,
+        credentialsFile: config['credentials_file'] as String?,
+        quotaProjectId: config['quota_project_id'] as String?,
       );
     } catch (e) {
       // If there's any error reading the config, return null
@@ -205,7 +228,10 @@ class PubspecConfig {
         l10nMethod != null ||
         useDeferredLoading != null ||
         translationService != null ||
-        projectId != null;
+        projectId != null ||
+        authMode != null ||
+        credentialsFile != null ||
+        quotaProjectId != null;
   }
 
   /// Returns a string representation of this configuration.
@@ -230,7 +256,10 @@ class PubspecConfig {
         'l10nMethod: $l10nMethod, '
         'useDeferredLoading: $useDeferredLoading, '
         'translationService: $translationService, '
-        'projectId: $projectId'
+        'projectId: $projectId, '
+        'authMode: $authMode, '
+        'credentialsFile: $credentialsFile, '
+        'quotaProjectId: $quotaProjectId'
         ')';
   }
 }

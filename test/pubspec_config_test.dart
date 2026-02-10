@@ -97,6 +97,11 @@ smart_arb_translator:
   auto_approve: true
   l10n_method: intl_utils
   use_deferred_loading: true
+  translation_service: google_llm
+  project_id: my-project
+  auth_mode: service_account
+  credentials_file: secrets/service-account.json
+  quota_project_id: billing-project
 ''');
 
       final config = PubspecConfig.loadFromPubspec(tempPubspec.path);
@@ -116,6 +121,11 @@ smart_arb_translator:
       expect(config.autoApprove, isTrue);
       expect(config.l10nMethod, equals('intl_utils'));
       expect(config.useDeferredLoading, isTrue);
+      expect(config.translationService, equals('google_llm'));
+      expect(config.projectId, equals('my-project'));
+      expect(config.authMode, equals('service_account'));
+      expect(config.credentialsFile, equals('secrets/service-account.json'));
+      expect(config.quotaProjectId, equals('billing-project'));
     });
 
     test('should handle malformed YAML gracefully', () {

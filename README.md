@@ -61,7 +61,11 @@ The tool will automatically prompt you to configure (hit `ENTER` key for default
 - **Source type**: Directory or single file
 - **Source path**: With smart defaults (lib/l10n_source for directories)
 - **Source locale**: With 'en' as default
-- **API key**: Path to your Google Translate API key file
+- **Translation service**: Google Basic/NMT (v2) or Google LLM (v3)
+- **Authentication mode**:
+  - `api_key` for v2 (and legacy v3 mode)
+  - `adc` for Google LLM with Application Default Credentials
+  - `service_account` for Google LLM with a JSON key file
 - **Cache directory**: For translation cache (default: lib/l10n_cache)
 - **Output directory**: For translated ARB files (default: lib/l10n)
 - **Generation method**: Choose between gen-l10n, intl_utils, or none
@@ -83,8 +87,6 @@ Enter the directory path containing your ARB files (default: lib/l10n_source):
 
 What is the locale of your source files? (default: en): 
 
-Enter the path to your Google Translate API key file: secrets/api_key.txt
-
 Which translation service do you want to use?
 1. Google Basic (v2) - Default
    - Standard translation service
@@ -94,6 +96,8 @@ Which translation service do you want to use?
    - Large Language Model translation (requires Project ID)
 
 Enter your choice (1, 2, or 3) [default: 1]: 1
+
+Enter the path to your Google Translate API key file: secrets/api_key.txt
 
 Enter the cache directory for translations (default: lib/l10n_cache): 
 
@@ -173,6 +177,21 @@ Text(AppLocalizations.of(context).yourTranslationKey)
 4. Create credentials (API Key)
 5. Save your API key to a text file (e.g., `api_key.txt`)
 
+### 2. Google LLM (v3) Authentication
+
+For `translation_service: google_llm`, Google Cloud Translation Advanced v3 is used.
+`translation-llm` is called in the `us-central1` location.
+
+- `auth_mode: adc` (recommended for local dev):
+  - Run `gcloud auth application-default login`
+  - Optional but recommended: `gcloud auth application-default set-quota-project YOUR_PROJECT_ID`
+- `auth_mode: service_account`:
+  - Create a service account with `roles/cloudtranslate.user`
+  - Download JSON key and set `credentials_file: path/to/service-account.json`
+- `auth_mode: api_key`:
+  - Kept for backward compatibility
+  - Google v3 typically expects OAuth credentials
+
 ### 2. ARB File Structure
 
 Ensure your ARB files follow the standard format:
@@ -228,7 +247,7 @@ smart_arb_translator:
   source_dir: lib/l10n                    # Directory containing ARB files
   # source_arb: lib/l10n/app_en.arb       # Single ARB file (alternative)
   
-  # Required: Google Translate API key
+  # Required for google_basic/google_nmt and google_llm with auth_mode=api_key
   api_key: secrets/google_translate_api_key.txt
   
   # Target languages (multiple formats supported)
@@ -249,9 +268,12 @@ smart_arb_translator:
   # Localization method (auto-detected if not specified)
   l10n_method: gen-l10n                    # Options: "gen-l10n", "intl_utils", or "none"
   
-  # Translation Service Configuration (NEW!)
+  # Translation Service Configuration
   translation_service: google_basic          # Options: "google_basic" (v2), "google_nmt" (v2), "google_llm" (v3)
-  project_id: my-gcp-project-id              # Required for "google_llm" service
+  project_id: my-gcp-project-id              # Required for "google_llm"
+  auth_mode: api_key                         # Options: "api_key", "adc", "service_account"
+  credentials_file: secrets/service-account.json   # Required when auth_mode=service_account
+  quota_project_id: my-billing-project-id    # Optional for OAuth requests (x-goog-user-project)
   
   # Automation
   auto_approve: false                      # Auto-approve pubspec.yaml modifications
@@ -312,6 +334,18 @@ smart_arb_translator \
   --dart_output_dir lib/generated
 ```
 
+#### Google LLM (v3) with ADC (no API key)
+
+```bash
+smart_arb_translator \
+  --source_dir lib/l10n \
+  --language_codes es,fr,de,it \
+  --translation_service google_llm \
+  --project_id your-gcp-project-id \
+  --auth_mode adc \
+  --generate_dart
+```
+
 ### Command Line Options
 
 All options can be configured in `pubspec.yaml` under the `smart_arb_translator` section. CLI arguments take precedence over pubspec.yaml settings.
@@ -320,7 +354,7 @@ All options can be configured in `pubspec.yaml` under the `smart_arb_translator`
 |--------|-------------|---------|------------------|
 | `--source_dir` | Source directory containing ARB files | - | `source_dir` |
 | `--source_arb` | Single ARB file to translate | - | `source_arb` |
-| `--api_key` | Path to Google Translate API key file | **Required** | `api_key` |
+| `--api_key` | Path to Google Translate API key file | Required for `google_basic`/`google_nmt` and `google_llm` with `auth_mode=api_key` | `api_key` |
 | `--language_codes` | Comma-separated target language codes | `es` | `language_codes` |
 | `--cache_directory` | Directory for translation cache | `lib/l10n_cache` | `cache_directory` |
 | `--l10n_directory` | Output directory for merged files | `lib/l10n` | `l10n_directory` |
@@ -334,6 +368,9 @@ All options can be configured in `pubspec.yaml` under the `smart_arb_translator`
 | `--use_deferred_loading` | Enable deferred loading for locales (Flutter Web optimization) | `false` | `use_deferred_loading` |
 | `--translation_service` | Translation service: `google_basic`, `google_nmt`, or `google_llm` | `google_basic` | `translation_service` |
 | `--project_id` | Google Cloud Project ID (required for `google_llm`) | - | `project_id` |
+| `--auth_mode` | Auth mode: `api_key`, `adc`, or `service_account` | `api_key` | `auth_mode` |
+| `--credentials_file` | Path to service account JSON key file (required for `service_account`) | - | `credentials_file` |
+| `--quota_project_id` | Optional quota/billing project id for OAuth requests | - | `quota_project_id` |
 
 
 ### Configuration Precedence

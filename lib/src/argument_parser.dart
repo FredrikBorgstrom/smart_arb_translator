@@ -37,6 +37,9 @@ class ArbTranslatorArgumentParser {
   static const _useDeferredLoading = 'use_deferred_loading';
   static const _translationService = 'translation_service';
   static const _projectId = 'project_id';
+  static const _authMode = 'auth_mode';
+  static const _credentialsFile = 'credentials_file';
+  static const _quotaProjectId = 'quota_project_id';
 
   /// Initializes and configures the argument parser.
   ///
@@ -63,7 +66,10 @@ class ArbTranslatorArgumentParser {
         help: 'directory where the translations will be cached',
       )
       ..addMultiOption(_languageCodes, defaultsTo: ['es'])
-      ..addOption(_apiKey, help: 'path to api_key must be provided')
+      ..addOption(
+        _apiKey,
+        help: 'path to api_key (required for google_basic/google_nmt and google_llm with auth_mode=api_key)',
+      )
       ..addOption(
         _outputFileName,
         defaultsTo: 'intl_',
@@ -119,6 +125,21 @@ class ArbTranslatorArgumentParser {
       ..addOption(
         _projectId,
         help: 'Google Cloud Project ID (required for "llm" service)',
+      )
+      ..addOption(
+        _authMode,
+        help:
+            'authentication mode: "api_key" (default), "adc" (Application Default Credentials), or "service_account" (JSON key file)',
+        allowed: ['api_key', 'adc', 'service_account'],
+        defaultsTo: 'api_key',
+      )
+      ..addOption(
+        _credentialsFile,
+        help: 'path to service account JSON credentials (used when auth_mode=service_account)',
+      )
+      ..addOption(
+        _quotaProjectId,
+        help: 'quota/billing project id for OAuth requests (x-goog-user-project header)',
       );
 
     return parser;
@@ -199,10 +220,38 @@ class ArbTranslatorArgumentParser {
       exit(2);
     }
 
-    if (mergedResult[_apiKey] == null) {
+    final translationService = mergedResult[_translationService] as String? ?? 'google_basic';
+    final projectId = (mergedResult[_projectId] as String?)?.trim();
+    final authMode = mergedResult[_authMode] as String? ?? 'api_key';
+    final apiKey = (mergedResult[_apiKey] as String?)?.trim();
+    final credentialsFile = (mergedResult[_credentialsFile] as String?)?.trim();
+
+    final needsApiKey = translationService != 'google_llm' || authMode == 'api_key';
+    if (needsApiKey && (apiKey == null || apiKey.isEmpty)) {
       _setBrightRed();
       stderr.write('--api_key is required (can be set in pubspec.yaml under smart_arb_translator section)');
       exit(2);
+    }
+
+    if (translationService == 'google_llm') {
+      if (projectId == null || projectId.isEmpty) {
+        _setBrightRed();
+        stderr.write(
+            '--project_id is required when --translation_service is "google_llm" (can be set in pubspec.yaml under smart_arb_translator section)');
+        exit(2);
+      }
+
+      if (authMode == 'service_account') {
+        final envCredentials = Platform.environment['GOOGLE_APPLICATION_CREDENTIALS']?.trim();
+        final hasCredentials = (credentialsFile != null && credentialsFile.isNotEmpty) ||
+            (envCredentials != null && envCredentials.isNotEmpty);
+        if (!hasCredentials) {
+          _setBrightRed();
+          stderr.write(
+              '--credentials_file is required when --auth_mode is "service_account" (or set GOOGLE_APPLICATION_CREDENTIALS).');
+          exit(2);
+        }
+      }
     }
 
     return mergedResult;
@@ -241,10 +290,12 @@ class ArbTranslatorArgumentParser {
     if (pubspecConfig.dartMainLocale != null) mergedOptions[_dartMainLocale] = pubspecConfig.dartMainLocale;
     if (pubspecConfig.autoApprove != null) mergedOptions[_autoApprove] = pubspecConfig.autoApprove;
     if (pubspecConfig.l10nMethod != null) mergedOptions[_l10nMethod] = pubspecConfig.l10nMethod;
-    if (pubspecConfig.l10nMethod != null) mergedOptions[_l10nMethod] = pubspecConfig.l10nMethod;
     if (pubspecConfig.useDeferredLoading != null) mergedOptions[_useDeferredLoading] = pubspecConfig.useDeferredLoading;
     if (pubspecConfig.translationService != null) mergedOptions[_translationService] = pubspecConfig.translationService;
     if (pubspecConfig.projectId != null) mergedOptions[_projectId] = pubspecConfig.projectId;
+    if (pubspecConfig.authMode != null) mergedOptions[_authMode] = pubspecConfig.authMode;
+    if (pubspecConfig.credentialsFile != null) mergedOptions[_credentialsFile] = pubspecConfig.credentialsFile;
+    if (pubspecConfig.quotaProjectId != null) mergedOptions[_quotaProjectId] = pubspecConfig.quotaProjectId;
 
     // Override with CLI arguments (CLI takes precedence)
     for (final option in cliResult.options) {
@@ -262,6 +313,7 @@ class ArbTranslatorArgumentParser {
     mergedOptions[_autoApprove] ??= false;
     mergedOptions[_useDeferredLoading] ??= false;
     mergedOptions[_translationService] ??= 'google_basic';
+    mergedOptions[_authMode] ??= 'api_key';
 
     return _MergedArgResults(mergedOptions, cliResult);
   }
@@ -313,16 +365,6 @@ class ArbTranslatorArgumentParser {
     final localeInput = stdin.readLineSync()?.trim() ?? '';
     config[_dartMainLocale] = localeInput.isEmpty ? 'en' : localeInput;
 
-    // Ask for API key
-    print('\nEnter the path to your Google Translate API key file: ');
-    final apiKeyInput = stdin.readLineSync()?.trim() ?? '';
-    if (apiKeyInput.isEmpty) {
-      _setBrightRed();
-      stderr.write('Google Translate API key path is required.');
-      exit(2);
-    }
-    config[_apiKey] = apiKeyInput;
-
     // Ask for translation service
     print('\nWhich translation service do you want to use?');
     print('1. Google Basic (v2) - Default');
@@ -345,7 +387,7 @@ class ArbTranslatorArgumentParser {
 
     config[_translationService] = service;
 
-    // Ask for Project ID if LLM is selected
+    // Ask for LLM-specific auth settings if LLM is selected
     if (service == 'google_llm') {
       print('\nEnter your Google Cloud Project ID (required for LLM service): ');
       final projectIdInput = stdin.readLineSync()?.trim() ?? '';
@@ -355,6 +397,52 @@ class ArbTranslatorArgumentParser {
         exit(2);
       }
       config[_projectId] = projectIdInput;
+
+      print('\nChoose authentication mode for Google LLM (v3):');
+      print('1. ADC (recommended)');
+      print('   - Uses gcloud application-default credentials or GOOGLE_APPLICATION_CREDENTIALS');
+      print('2. Service account key file');
+      print('   - Uses explicit JSON key path');
+      print('3. API key (legacy)');
+      print('   - Kept for backward compatibility; Google v3 generally expects OAuth');
+      print('');
+      print('Enter your choice (1, 2, or 3) [default: 1]: ');
+
+      final authInput = stdin.readLineSync()?.trim() ?? '';
+      if (authInput == '2') {
+        config[_authMode] = 'service_account';
+        print('\nEnter the path to your service account JSON file: ');
+        final credentialsInput = stdin.readLineSync()?.trim() ?? '';
+        if (credentialsInput.isEmpty) {
+          _setBrightRed();
+          stderr.write('Service account credentials file path is required.');
+          exit(2);
+        }
+        config[_credentialsFile] = credentialsInput;
+      } else if (authInput == '3') {
+        config[_authMode] = 'api_key';
+        print('\nEnter the path to your Google Translate API key file: ');
+        final apiKeyInput = stdin.readLineSync()?.trim() ?? '';
+        if (apiKeyInput.isEmpty) {
+          _setBrightRed();
+          stderr.write('Google Translate API key path is required.');
+          exit(2);
+        }
+        config[_apiKey] = apiKeyInput;
+      } else {
+        config[_authMode] = 'adc';
+      }
+    } else {
+      // V2 services require API key authentication
+      config[_authMode] = 'api_key';
+      print('\nEnter the path to your Google Translate API key file: ');
+      final apiKeyInput = stdin.readLineSync()?.trim() ?? '';
+      if (apiKeyInput.isEmpty) {
+        _setBrightRed();
+        stderr.write('Google Translate API key path is required.');
+        exit(2);
+      }
+      config[_apiKey] = apiKeyInput;
     }
 
     // Ask for cache directory
@@ -530,7 +618,10 @@ class ArbTranslatorArgumentParser {
       'l10n_method:',
       'use_deferred_loading:',
       'translation_service:',
-      'project_id:'
+      'project_id:',
+      'auth_mode:',
+      'credentials_file:',
+      'quota_project_id:'
     ];
     return configKeys.any((key) => trimmedLine.startsWith(key));
   }
@@ -594,6 +685,9 @@ class ArbTranslatorArgumentParser {
   static String get useDeferredLoading => _useDeferredLoading;
   static String get translationService => _translationService;
   static String get projectId => _projectId;
+  static String get authMode => _authMode;
+  static String get credentialsFile => _credentialsFile;
+  static String get quotaProjectId => _quotaProjectId;
 }
 
 /// Custom ArgResults implementation that merges CLI args with pubspec.yaml config

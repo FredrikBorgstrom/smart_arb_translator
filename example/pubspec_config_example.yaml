@@ -23,7 +23,7 @@ smart_arb_translator:
   source_dir: lib/l10n                    # Directory containing ARB files
   # source_arb: lib/l10n/app_en.arb       # Single ARB file (alternative to source_dir)
   
-  # Required: Google Translate API key
+  # Required for google_basic/google_nmt and google_llm with auth_mode=api_key
   api_key: secrets/google_translate_api_key.txt
   
   # Target languages (multiple formats supported)
@@ -46,7 +46,14 @@ smart_arb_translator:
   
   # Performance optimization
   use_deferred_loading: false              # Enable deferred loading for locales (Flutter Web optimization)
-  
+
+  # Translation service and auth
+  translation_service: google_basic         # "google_basic", "google_nmt", or "google_llm"
+  project_id: my-gcp-project-id             # Required for "google_llm"
+  auth_mode: api_key                        # "api_key", "adc", or "service_account"
+  # credentials_file: secrets/service-account.json  # Required when auth_mode=service_account
+  # quota_project_id: my-billing-project-id         # Optional for OAuth requests
+
   # Automation
   auto_approve: false                      # Auto-approve pubspec.yaml modifications
 

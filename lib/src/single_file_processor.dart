@@ -98,6 +98,9 @@ class SingleFileProcessor {
     bool useDeferredLoading = false,
     String translationService = 'google_basic',
     String? projectId,
+    String authMode = 'api_key',
+    String? credentialsFile,
+    String? quotaProjectId,
   }) async {
     dartClassName ??= (l10nMethod == 'gen-l10n') ? 'AppLocalizations' : 'S';
     final arbFile = FileOperations.createFileRef(sourceArb);
@@ -152,6 +155,9 @@ class SingleFileProcessor {
         statistics,
         translationService: translationService,
         projectId: projectId,
+        authMode: authMode,
+        credentialsFile: credentialsFile,
+        quotaProjectId: quotaProjectId,
       );
     }
 
@@ -258,6 +264,9 @@ class SingleFileProcessor {
     TranslationStatistics? statistics, {
     String translationService = 'google_basic',
     String? projectId,
+    String authMode = 'api_key',
+    String? credentialsFile,
+    String? quotaProjectId,
   }) async {
     final sourceArbFile = File(sourceArbPath);
     final sourceContent = sourceArbFile.readAsStringSync();
@@ -353,6 +362,9 @@ class SingleFileProcessor {
             parameters: <String, dynamic>{'target': languageCode, 'key': apiKey},
             translationService: translationService,
             projectId: projectId,
+            authMode: authMode,
+            credentialsFile: credentialsFile,
+            quotaProjectId: quotaProjectId,
           );
         }).toList();
 

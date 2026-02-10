@@ -2,6 +2,7 @@
 ///
 /// This file contains helper functions for enum handling, HTML processing,
 /// and text manipulation used throughout the translation workflow.
+library;
 
 /// Returns the string representation of an enum value.
 ///

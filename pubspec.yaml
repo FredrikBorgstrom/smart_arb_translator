@@ -1,6 +1,6 @@
 name: smart_arb_translator
 description: An intelligent command-line utility for translating ARB files with Google Translate API, featuring smart change detection and modular architecture.
-version: 1.4.1
+version: 1.5.0
 repository: https://github.com/FredrikBorgstrom/smart_arb_translator.git
 homepage: https://github.com/FredrikBorgstrom/smart_arb_translator
 documentation: https://github.com/FredrikBorgstrom/smart_arb_translator#readme
@@ -16,6 +16,7 @@ dependencies:
   args: ^2.7.0
   collection: ^1.19.1
   console: ^4.1.0
+  googleapis_auth: ^2.0.0
   html_unescape: ^2.0.0
   http: ^1.4.0
   intl_utils: ^2.8.10

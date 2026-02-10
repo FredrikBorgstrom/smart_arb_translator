@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:googleapis_auth/auth_io.dart' as auth;
 import 'package:html_unescape/html_unescape.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_arb_translator/src/models/arb_document.dart';
@@ -11,6 +13,10 @@ import 'package:smart_arb_translator/src/utils.dart';
 /// This class provides static methods for translating text content and managing
 /// translation workflows for ARB (Application Resource Bundle) files.
 class TranslationService {
+  static const String _cloudPlatformScope = 'https://www.googleapis.com/auth/cloud-platform';
+  static const String _llmModelId = 'general/translation-llm';
+  static const String _llmLocation = 'us-central1';
+
   /// Translates a list of texts using Google Translate API.
   ///
   /// Takes a list of strings to translate and API parameters including the target
@@ -36,6 +42,10 @@ class TranslationService {
     required Map<String, dynamic> parameters,
     String translationService = 'google_basic',
     String? projectId,
+    String authMode = 'api_key',
+    String? credentialsFile,
+    String? quotaProjectId,
+    String? accessToken,
     http.Client? client,
   }) async {
     switch (translationService) {
@@ -45,7 +55,16 @@ class TranslationService {
         if (projectId == null) {
           throw ArgumentError('Project ID is required for LLM translation service');
         }
-        return _translateWithLLM(translateList, parameters, projectId, client: client);
+        return _translateWithLLM(
+          translateList,
+          parameters,
+          projectId,
+          authMode: authMode,
+          credentialsFile: credentialsFile,
+          quotaProjectId: quotaProjectId,
+          accessToken: accessToken,
+          client: client,
+        );
       case 'google_basic':
       default:
         return _translateWithBasic(translateList, parameters, client: client);
@@ -57,11 +76,12 @@ class TranslationService {
     Map<String, dynamic> parameters, {
     http.Client? client,
   }) async {
+    final requestParameters = Map<String, dynamic>.from(parameters);
     final translated = <String>[];
-    parameters['q'] = translateList;
+    requestParameters['q'] = translateList;
 
     final url = Uri.parse('https://translation.googleapis.com/language/translate/v2')
-        .resolveUri(Uri(queryParameters: parameters));
+        .resolveUri(Uri(queryParameters: requestParameters));
 
     final data = await (client?.get(url) ?? http.get(url));
 
@@ -98,35 +118,55 @@ class TranslationService {
     List<String> translateList,
     Map<String, dynamic> parameters,
     String projectId, {
+    String authMode = 'api_key',
+    String? credentialsFile,
+    String? quotaProjectId,
+    String? accessToken,
     http.Client? client,
   }) async {
-    // LLM uses the v3 API
-    // Endpoint: https://translation.googleapis.com/v3/projects/{project-id}/locations/global:translateText
+    switch (authMode) {
+      case 'api_key':
+        return _translateWithLLMUsingApiKey(
+          translateList,
+          parameters,
+          projectId,
+          client: client,
+        );
+      case 'adc':
+      case 'service_account':
+        final resolvedAccessToken = await _resolveOAuthAccessToken(
+          authMode: authMode,
+          credentialsFile: credentialsFile,
+          accessToken: accessToken,
+        );
+        return _translateWithLLMUsingOAuth(
+          translateList,
+          parameters,
+          projectId,
+          accessToken: resolvedAccessToken,
+          quotaProjectId: quotaProjectId,
+          client: client,
+        );
+      default:
+        throw ArgumentError('Unsupported auth mode for google_llm: $authMode');
+    }
+  }
 
-    final apiKey = parameters['key'] as String;
-    final targetLanguage = parameters['target'] as String;
-    // v3 uses 'sourceLanguageCode' and 'targetLanguageCode' instead of 'source' and 'target'
-    // But 'source' is optional in v2 and often inferred. If we have it, we should pass it.
-    // The current implementation doesn't seem to pass 'source' explicitly in parameters usually,
-    // but if it's there, we use it.
-
-    final url = Uri.parse(
-        'https://translation.googleapis.com/v3/projects/$projectId/locations/global:translateText?key=$apiKey');
-
-    final body = {
-      'contents': translateList,
-      'targetLanguageCode': targetLanguage,
-      'mimeType': 'text/html', // We use HTML for safety in ArbProcessor
-    };
-
-    if (parameters.containsKey('source')) {
-      body['sourceLanguageCode'] = parameters['source'] as String;
+  static Future<List<String>> _translateWithLLMUsingApiKey(
+    List<String> translateList,
+    Map<String, dynamic> parameters,
+    String projectId, {
+    http.Client? client,
+  }) async {
+    final apiKey = (parameters['key'] as String?)?.trim();
+    if (apiKey == null || apiKey.isEmpty) {
+      throw ArgumentError('API key is required when auth_mode is "api_key"');
     }
 
-    // For "LLM" quality, we might want to specify a model if available,
-    // but standard v3 is already NMT/Advanced.
-    // If there's a specific model for LLM, we'd add it here.
-    // For now, v3 is the "advanced" option.
+    final url = Uri.parse(
+      'https://translation.googleapis.com/v3/projects/$projectId/locations/$_llmLocation:translateText?key=$apiKey',
+    );
+    final body = _buildLlmRequestBody(translateList, parameters, projectId);
 
     final response = await (client?.post(
           url,
@@ -143,11 +183,117 @@ class TranslationService {
       throw http.ClientException('Error ${response.statusCode}: ${response.body}', url);
     }
 
-    final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
+    return _extractV3Translations(response.body);
+  }
+
+  static Future<List<String>> _translateWithLLMUsingOAuth(
+    List<String> translateList,
+    Map<String, dynamic> parameters,
+    String projectId, {
+    required String accessToken,
+    String? quotaProjectId,
+    http.Client? client,
+  }) async {
+    final url = Uri.parse(
+      'https://translation.googleapis.com/v3/projects/$projectId/locations/$_llmLocation:translateText',
+    );
+    final body = _buildLlmRequestBody(translateList, parameters, projectId);
+    final headers = <String, String>{
+      'Authorization': 'Bearer $accessToken',
+      'Content-Type': 'application/json',
+    };
+    final quotaProject = quotaProjectId?.trim();
+    if (quotaProject != null && quotaProject.isNotEmpty) {
+      headers['x-goog-user-project'] = quotaProject;
+    }
+
+    final response = await (client?.post(
+          url,
+          headers: headers,
+          body: jsonEncode(body),
+        ) ??
+        http.post(
+          url,
+          headers: headers,
+          body: jsonEncode(body),
+        ));
+
+    if (response.statusCode != 200) {
+      throw http.ClientException('Error ${response.statusCode}: ${response.body}', url);
+    }
+
+    return _extractV3Translations(response.body);
+  }
+
+  static Future<String> _resolveOAuthAccessToken({
+    required String authMode,
+    String? credentialsFile,
+    String? accessToken,
+  }) async {
+    final inlineAccessToken = accessToken?.trim();
+    if (inlineAccessToken != null && inlineAccessToken.isNotEmpty) {
+      return inlineAccessToken;
+    }
+
+    auth.AutoRefreshingAuthClient authClient;
+    if (authMode == 'service_account') {
+      final serviceAccountPath = (credentialsFile?.trim().isNotEmpty ?? false)
+          ? credentialsFile!.trim()
+          : (Platform.environment['GOOGLE_APPLICATION_CREDENTIALS']?.trim());
+
+      if (serviceAccountPath == null || serviceAccountPath.isEmpty) {
+        throw ArgumentError(
+          'Service account credentials were not provided. '
+          'Set --credentials_file or GOOGLE_APPLICATION_CREDENTIALS.',
+        );
+      }
+
+      final credentialsFileRef = File(serviceAccountPath);
+      if (!credentialsFileRef.existsSync()) {
+        throw ArgumentError('Service account credentials file not found: $serviceAccountPath');
+      }
+
+      final credentialsJson = jsonDecode(credentialsFileRef.readAsStringSync());
+      final serviceAccountCredentials = auth.ServiceAccountCredentials.fromJson(credentialsJson);
+      authClient = await auth.clientViaServiceAccount(
+        serviceAccountCredentials,
+        [_cloudPlatformScope],
+      );
+    } else {
+      authClient = await auth.clientViaApplicationDefaultCredentials(
+        scopes: [_cloudPlatformScope],
+      );
+    }
+
+    final token = authClient.credentials.accessToken.data;
+    authClient.close();
+    return token;
+  }
+
+  static Map<String, dynamic> _buildLlmRequestBody(
+    List<String> translateList,
+    Map<String, dynamic> parameters,
+    String projectId,
+  ) {
+    final targetLanguage = parameters['target'] as String;
+    final body = <String, dynamic>{
+      'contents': translateList,
+      'targetLanguageCode': targetLanguage,
+      'mimeType': 'text/html',
+      'model': 'projects/$projectId/locations/$_llmLocation/models/$_llmModelId',
+    };
+
+    if (parameters.containsKey('source')) {
+      body['sourceLanguageCode'] = parameters['source'] as String;
+    }
+    return body;
+  }
+
+  static List<String> _extractV3Translations(String responseBody) {
+    final jsonData = jsonDecode(responseBody) as Map<String, dynamic>;
     final translations = List<Map<String, dynamic>>.from(
       jsonData['translations'] as Iterable,
     );
-
     return translations.map((t) => t['translatedText'] as String).toList();
   }
 

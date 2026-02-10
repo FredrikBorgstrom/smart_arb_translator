@@ -50,13 +50,14 @@ void main() {
     test('translateTexts uses google_llm service (v3)', () async {
       final mockClient = MockClient((request) async {
         expect(request.url.host, 'translation.googleapis.com');
-        expect(request.url.path, '/v3/projects/my-project/locations/global:translateText');
+        expect(request.url.path, '/v3/projects/my-project/locations/us-central1:translateText');
         expect(request.url.queryParameters['key'], 'test-key');
 
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['contents'], ['Hello']);
         expect(body['targetLanguageCode'], 'es');
         expect(body['mimeType'], 'text/html');
+        expect(body['model'], 'projects/my-project/locations/us-central1/models/general/translation-llm');
 
         return http.Response('{"translations": [{"translatedText": "Hola LLM"}]}', 200);
       });
@@ -72,12 +73,56 @@ void main() {
       expect(result, ['Hola LLM']);
     });
 
+    test('translateTexts uses OAuth headers for google_llm with adc auth mode', () async {
+      final mockClient = MockClient((request) async {
+        expect(request.url.host, 'translation.googleapis.com');
+        expect(request.url.path, '/v3/projects/my-project/locations/us-central1:translateText');
+        expect(request.url.queryParameters['key'], isNull);
+        expect(request.headers['authorization'], 'Bearer test-access-token');
+        expect(request.headers['x-goog-user-project'], 'billing-project-id');
+
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['contents'], ['Hello']);
+        expect(body['targetLanguageCode'], 'es');
+        expect(body['mimeType'], 'text/html');
+        expect(body['model'], 'projects/my-project/locations/us-central1/models/general/translation-llm');
+
+        return http.Response('{"translations": [{"translatedText": "Hola OAuth"}]}', 200);
+      });
+
+      final result = await TranslationService.translateTexts(
+        translateList: ['Hello'],
+        parameters: {'target': 'es'},
+        translationService: 'google_llm',
+        authMode: 'adc',
+        accessToken: 'test-access-token',
+        quotaProjectId: 'billing-project-id',
+        projectId: 'my-project',
+        client: mockClient,
+      );
+
+      expect(result, ['Hola OAuth']);
+    });
+
     test('translateTexts throws if project ID is missing for google_llm service', () async {
       expect(
         () => TranslationService.translateTexts(
           translateList: ['Hello'],
           parameters: {'key': 'test-key', 'target': 'es'},
           translationService: 'google_llm',
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('translateTexts throws if API key is missing for google_llm with api_key auth mode', () async {
+      expect(
+        () => TranslationService.translateTexts(
+          translateList: ['Hello'],
+          parameters: {'target': 'es'},
+          translationService: 'google_llm',
+          authMode: 'api_key',
+          projectId: 'my-project',
         ),
         throwsArgumentError,
       );

@@ -13,10 +13,10 @@ Future<void> main(List<String> args) async {
 
     // Extract common parameters
     final languageCodes = result[ArbTranslatorArgumentParser.languageCodes] as List<String>;
-    var apiKey = result[ArbTranslatorArgumentParser.apiKey] as String;
+    var apiKey = result[ArbTranslatorArgumentParser.apiKey] as String?;
 
     // Check if apiKey is a file path and read it if so
-    if (File(apiKey).existsSync()) {
+    if (apiKey != null && File(apiKey).existsSync()) {
       try {
         apiKey = File(apiKey).readAsStringSync().trim();
       } catch (e) {
@@ -33,6 +33,9 @@ Future<void> main(List<String> args) async {
     final useDeferredLoading = result[ArbTranslatorArgumentParser.useDeferredLoading] as bool? ?? false;
     final translationService = result[ArbTranslatorArgumentParser.translationService] as String? ?? 'google_basic';
     final projectId = result[ArbTranslatorArgumentParser.projectId] as String?;
+    final authMode = result[ArbTranslatorArgumentParser.authMode] as String? ?? 'api_key';
+    final credentialsFile = result[ArbTranslatorArgumentParser.credentialsFile] as String?;
+    final quotaProjectId = result[ArbTranslatorArgumentParser.quotaProjectId] as String?;
 
     // Determine processing mode
     final sourceArb = result[ArbTranslatorArgumentParser.sourceArb] as String?;
@@ -46,7 +49,7 @@ Future<void> main(List<String> args) async {
       await SingleFileProcessor.processSingleFile(
         sourceArb,
         languageCodes,
-        apiKey,
+        apiKey ?? '',
         l10nDirectory,
         outputFileName,
         generateDart: generateDart,
@@ -58,6 +61,9 @@ Future<void> main(List<String> args) async {
         useDeferredLoading: useDeferredLoading,
         translationService: translationService,
         projectId: projectId,
+        authMode: authMode,
+        credentialsFile: credentialsFile,
+        quotaProjectId: quotaProjectId,
       );
     } else if (sourceDir != null) {
       // Directory processing
@@ -68,7 +74,7 @@ Future<void> main(List<String> args) async {
       await DirectoryProcessor.processDirectory(
         sourceDir,
         languageCodes,
-        apiKey,
+        apiKey ?? '',
         cacheDirectory,
         outputFileName,
         l10nDirectory,
@@ -81,6 +87,9 @@ Future<void> main(List<String> args) async {
         useDeferredLoading: useDeferredLoading,
         translationService: translationService,
         projectId: projectId,
+        authMode: authMode,
+        credentialsFile: credentialsFile,
+        quotaProjectId: quotaProjectId,
       );
     }
 

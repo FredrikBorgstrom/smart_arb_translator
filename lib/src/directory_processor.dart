@@ -105,6 +105,9 @@ class DirectoryProcessor {
     bool useDeferredLoading = false,
     String translationService = 'google_basic',
     String? projectId,
+    String authMode = 'api_key',
+    String? credentialsFile,
+    String? quotaProjectId,
   }) async {
     dartClassName ??= (l10nMethod == 'gen-l10n') ? 'AppLocalizations' : 'S';
 
@@ -193,6 +196,9 @@ class DirectoryProcessor {
           statistics,
           translationService: translationService,
           projectId: projectId,
+          authMode: authMode,
+          credentialsFile: credentialsFile,
+          quotaProjectId: quotaProjectId,
         );
       }
     }

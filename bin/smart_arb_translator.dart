@@ -8,7 +8,6 @@ import 'package:path/path.dart' as path;
 import 'package:smart_arb_translator/src/argument_parser.dart';
 import 'package:smart_arb_translator/src/console_utils.dart';
 import 'package:smart_arb_translator/src/directory_processor.dart';
-import 'package:smart_arb_translator/src/file_operations.dart';
 import 'package:smart_arb_translator/src/single_file_processor.dart';
 import 'package:yaml/yaml.dart';
 
@@ -44,7 +43,7 @@ void main(List<String> args) async {
       exit(2);
     }
   }
-  final apiKeyFile = FileOperations.createFileRef(result[ArbTranslatorArgumentParser.apiKey] as String);
+  var apiKey = result[ArbTranslatorArgumentParser.apiKey] as String?;
   String outputFileName = result[ArbTranslatorArgumentParser.outputFileName] as String;
   /* if (outputFileName == 'intl_') {
     outputFileName = '';
@@ -66,8 +65,15 @@ void main(List<String> args) async {
   final autoApprove = result[ArbTranslatorArgumentParser.autoApprove] as bool;
   final l10nMethod = result[ArbTranslatorArgumentParser.l10nMethod] as String?;
   final useDeferredLoading = result[ArbTranslatorArgumentParser.useDeferredLoading] as bool;
+  final translationService = result[ArbTranslatorArgumentParser.translationService] as String;
+  final projectId = result[ArbTranslatorArgumentParser.projectId] as String?;
+  final authMode = result[ArbTranslatorArgumentParser.authMode] as String? ?? 'api_key';
+  final credentialsFile = result[ArbTranslatorArgumentParser.credentialsFile] as String?;
+  final quotaProjectId = result[ArbTranslatorArgumentParser.quotaProjectId] as String?;
 
-  final apiKey = apiKeyFile.readAsStringSync();
+  if (apiKey != null && File(apiKey).existsSync()) {
+    apiKey = File(apiKey).readAsStringSync().trim();
+  }
 
   if (languageCodes.toSet().length != languageCodes.length) {
     ConsoleUtils.setBrightRed();
@@ -80,7 +86,7 @@ void main(List<String> args) async {
     await DirectoryProcessor.processDirectory(
       sourcePath,
       languageCodes,
-      apiKey,
+      apiKey ?? '',
       cachePath,
       outputFileName,
       l10nDirectory,
@@ -91,12 +97,17 @@ void main(List<String> args) async {
       autoApprove: autoApprove,
       l10nMethod: l10nMethod,
       useDeferredLoading: useDeferredLoading,
+      translationService: translationService,
+      projectId: projectId,
+      authMode: authMode,
+      credentialsFile: credentialsFile,
+      quotaProjectId: quotaProjectId,
     );
   } else if (sourceArb != null) {
     await SingleFileProcessor.processSingleFile(
       sourceArb,
       languageCodes,
-      apiKey,
+      apiKey ?? '',
       cachePath,
       outputFileName,
       generateDart: generateDart,
@@ -106,6 +117,11 @@ void main(List<String> args) async {
       autoApprove: autoApprove,
       l10nMethod: l10nMethod,
       useDeferredLoading: useDeferredLoading,
+      translationService: translationService,
+      projectId: projectId,
+      authMode: authMode,
+      credentialsFile: credentialsFile,
+      quotaProjectId: quotaProjectId,
     );
 
     // Create l10n directory and merge files for single file processing

@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-02-10
+
+### Added
+- 🔐 **OAuth Authentication for `google_llm`**: Added support for Application Default Credentials (ADC) and explicit service-account JSON key authentication for Cloud Translation v3 LLM.
+- ⚙️ **New Auth Configuration Options**:
+  - `auth_mode`: `api_key`, `adc`, or `service_account`
+  - `credentials_file`: service-account JSON path (for `service_account`)
+  - `quota_project_id`: optional quota/billing project for OAuth requests (`x-goog-user-project`)
+- ✅ **Validation Improvements**:
+  - `--api_key` is now required only when needed (`google_basic`, `google_nmt`, or `google_llm` with `auth_mode=api_key`)
+  - `--project_id` validation for `google_llm`
+  - `--credentials_file` validation for `service_account` mode (with env fallback to `GOOGLE_APPLICATION_CREDENTIALS`)
+
+### Changed
+- 🌐 **LLM Model Routing**: `google_llm` now explicitly requests `general/translation-llm` model.
+- 🧩 **CLI/Config Wiring**: Auth and translation settings are fully propagated from CLI/pubspec config through processors into translation requests.
+- 📚 **Documentation Updates**: Updated README/examples for ADC/service-account setup and `google_llm` usage.
+
+### Fixed
+- 🐛 **Translation LLM Location**: Fixed invalid `global` location usage for `translation-llm`; requests now use `us-central1`.
+
 ## [1.4.1] - 2025-11-24
 
 ### Fixed
