@@ -18,6 +18,10 @@ class TranslationService {
   static const String _llmLocation = 'us-central1';
   static const String _openAiDefaultModel = 'gpt-4o-mini';
   static const String _openAiChatCompletionsUrl = 'https://api.openai.com/v1/chat/completions';
+  static const String _openAiPlaceholderTokenPrefix = '__SMART_ARB_PH_';
+  static const String _openAiPlaceholderTokenSuffix = '__';
+  static final RegExp _openAiNoTranslateRegex = RegExp(r'<span class="notranslate">(.*?)</span>', dotAll: true);
+  static final RegExp _openAiOuterSpanRegex = RegExp(r'^<span>(.*)</span>$', dotAll: true);
 
   /// Translates a list of texts using Google Translate API.
   ///
@@ -251,10 +255,11 @@ class TranslationService {
     final sourceLanguage = (parameters['source'] as String?)?.trim();
     final translationContext = (parameters['translation_context'] as String?)?.trim();
     final openAiModel = (parameters['openai_model'] as String?)?.trim();
+    final preparedTexts = _prepareOpenAiTexts(translateList);
 
     final url = Uri.parse(_openAiChatCompletionsUrl);
     final body = _buildOpenAiRequestBody(
-      translateList: translateList,
+      translateList: preparedTexts.promptTexts,
       targetLanguage: targetLanguage,
       sourceLanguage: sourceLanguage,
       translationContext: translationContext,
@@ -282,9 +287,13 @@ class TranslationService {
       throw http.ClientException('Error ${response.statusCode}: ${response.body}', url);
     }
 
-    return _extractOpenAiTranslations(
+    final extracted = _extractOpenAiTranslations(
       response.body,
       expectedCount: translateList.length,
+    );
+    return _restoreOpenAiPlaceholders(
+      extracted,
+      preparedTexts.placeholderTokensByText,
     );
   }
 
@@ -363,7 +372,9 @@ class TranslationService {
       ..writeln('You are a professional localization translator for ARB resources.')
       ..writeln('Translate each input string to the requested target language.')
       ..writeln(
-          'Preserve ICU placeholders, HTML tags, line breaks, punctuation, and spacing exactly when they should not change meaning.')
+          'Preserve line breaks, punctuation, spacing, and any HTML tags exactly when they should not change meaning.')
+      ..writeln(
+          'Placeholder tokens follow the pattern "__SMART_ARB_PH_<number>__". Never translate, alter, remove, or reorder these tokens.')
       ..writeln('Do not add or remove items, and keep the same order as the input list.')
       ..writeln('Return strict JSON only in the format {"translations":["..."]}.');
 
@@ -451,6 +462,70 @@ class TranslationService {
 
     final withoutOpening = content.replaceFirst(RegExp(r'^```(?:json)?\s*'), '');
     return withoutOpening.replaceFirst(RegExp(r'\s*```$'), '');
+  }
+
+  static _OpenAiPreparedTexts _prepareOpenAiTexts(List<String> translateList) {
+    final promptTexts = <String>[];
+    final placeholderTokensByText = <Map<String, String>>[];
+
+    for (final text in translateList) {
+      var workingText = text;
+      final outerSpanMatch = _openAiOuterSpanRegex.firstMatch(workingText);
+      if (outerSpanMatch != null) {
+        workingText = outerSpanMatch.group(1)!;
+      }
+
+      var tokenIndex = 0;
+      final tokenMap = <String, String>{};
+      workingText = workingText.replaceAllMapped(_openAiNoTranslateRegex, (match) {
+        final placeholderName = match.group(1) ?? '';
+        final token = '$_openAiPlaceholderTokenPrefix$tokenIndex$_openAiPlaceholderTokenSuffix';
+        tokenMap[token] = placeholderName;
+        tokenIndex++;
+        return token;
+      });
+
+      promptTexts.add(workingText);
+      placeholderTokensByText.add(tokenMap);
+    }
+
+    return _OpenAiPreparedTexts(
+      promptTexts: promptTexts,
+      placeholderTokensByText: placeholderTokensByText,
+    );
+  }
+
+  static List<String> _restoreOpenAiPlaceholders(
+    List<String> translations,
+    List<Map<String, String>> placeholderTokensByText,
+  ) {
+    if (translations.length != placeholderTokensByText.length) {
+      throw FormatException(
+        'OpenAI returned ${translations.length} translations for ${placeholderTokensByText.length} inputs.',
+      );
+    }
+
+    final restoredTranslations = <String>[];
+    for (var i = 0; i < translations.length; i++) {
+      var translation = translations[i];
+      final placeholderTokenMap = placeholderTokensByText[i];
+
+      for (final token in placeholderTokenMap.keys) {
+        if (!translation.contains(token)) {
+          throw FormatException(
+            'OpenAI response modified placeholder token "$token" in translation item ${i + 1}.',
+          );
+        }
+      }
+
+      placeholderTokenMap.forEach((token, placeholderName) {
+        translation = translation.replaceAll(token, '{$placeholderName}');
+      });
+
+      restoredTranslations.add(translation);
+    }
+
+    return restoredTranslations;
   }
 
   /// Inserts manual translations from ARB document attributes into translation results.
@@ -543,5 +618,15 @@ class Action {
     required this.updateFunction,
     required this.resourceId,
     required this.text,
+  });
+}
+
+class _OpenAiPreparedTexts {
+  final List<String> promptTexts;
+  final List<Map<String, String>> placeholderTokensByText;
+
+  const _OpenAiPreparedTexts({
+    required this.promptTexts,
+    required this.placeholderTokensByText,
   });
 }

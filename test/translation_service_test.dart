@@ -175,5 +175,63 @@ void main() {
         throwsArgumentError,
       );
     });
+
+    test('translateTexts preserves ARB placeholders for openai', () async {
+      final sourceText =
+          '<span>Developed by <span class="notranslate">company</span> in <span class="notranslate">country</span></span>';
+
+      final mockClient = MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final messages = List<Map<String, dynamic>>.from(body['messages'] as List<dynamic>);
+        final userPayload = jsonDecode(messages[1]['content'] as String) as Map<String, dynamic>;
+        final payloadText = (userPayload['texts'] as List<dynamic>).first as String;
+
+        expect(payloadText, contains('__SMART_ARB_PH_0__'));
+        expect(payloadText, contains('__SMART_ARB_PH_1__'));
+        expect(payloadText, isNot(contains('company')));
+        expect(payloadText, isNot(contains('country')));
+
+        return http.Response(
+          '{"choices":[{"message":{"content":"{\\"translations\\":[\\"Sviluppato da __SMART_ARB_PH_0__ in __SMART_ARB_PH_1__\\"]}"}}]}',
+          200,
+        );
+      });
+
+      final result = await TranslationService.translateTexts(
+        translateList: [sourceText],
+        parameters: {
+          'key': 'openai-key',
+          'target': 'it',
+        },
+        translationService: 'openai',
+        client: mockClient,
+      );
+
+      expect(result, ['Sviluppato da {company} in {country}']);
+    });
+
+    test('translateTexts throws when openai changes placeholder tokens', () async {
+      final sourceText = '<span>Developed by <span class="notranslate">company</span></span>';
+
+      final mockClient = MockClient((request) async {
+        return http.Response(
+          '{"choices":[{"message":{"content":"{\\"translations\\":[\\"Sviluppato da azienda\\"]}"}}]}',
+          200,
+        );
+      });
+
+      expect(
+        () => TranslationService.translateTexts(
+          translateList: [sourceText],
+          parameters: {
+            'key': 'openai-key',
+            'target': 'it',
+          },
+          translationService: 'openai',
+          client: mockClient,
+        ),
+        throwsA(isA<FormatException>()),
+      );
+    });
   });
 }
