@@ -70,6 +70,11 @@ void main(List<String> args) async {
   final authMode = result[ArbTranslatorArgumentParser.authMode] as String? ?? 'api_key';
   final credentialsFile = result[ArbTranslatorArgumentParser.credentialsFile] as String?;
   final quotaProjectId = result[ArbTranslatorArgumentParser.quotaProjectId] as String?;
+  final openaiModel = result[ArbTranslatorArgumentParser.openaiModel] as String? ?? 'gpt-4o-mini';
+  final translationContext = _readTranslationContext(
+    result[ArbTranslatorArgumentParser.translationContext] as String?,
+    result[ArbTranslatorArgumentParser.translationContextFile] as String?,
+  );
 
   if (apiKey != null && File(apiKey).existsSync()) {
     apiKey = File(apiKey).readAsStringSync().trim();
@@ -102,6 +107,8 @@ void main(List<String> args) async {
       authMode: authMode,
       credentialsFile: credentialsFile,
       quotaProjectId: quotaProjectId,
+      openaiModel: openaiModel,
+      translationContext: translationContext,
     );
   } else if (sourceArb != null) {
     await SingleFileProcessor.processSingleFile(
@@ -122,6 +129,8 @@ void main(List<String> args) async {
       authMode: authMode,
       credentialsFile: credentialsFile,
       quotaProjectId: quotaProjectId,
+      openaiModel: openaiModel,
+      translationContext: translationContext,
     );
 
     // Create l10n directory and merge files for single file processing
@@ -135,4 +144,32 @@ void main(List<String> args) async {
   ConsoleUtils.setBrightGreen();
   print('✓ Translations created');
   ConsoleUtils.resetTextColor();
+}
+
+String? _readTranslationContext(String? inlineContext, String? contextFilePath) {
+  final normalizedInline = inlineContext?.trim();
+  final normalizedPath = contextFilePath?.trim();
+
+  final contexts = <String>[];
+  if (normalizedPath != null && normalizedPath.isNotEmpty) {
+    final contextFile = File(normalizedPath);
+    if (!contextFile.existsSync()) {
+      ConsoleUtils.setBrightRed();
+      stderr.write('Translation context file does not exist: $normalizedPath');
+      exit(2);
+    }
+    final fileContent = contextFile.readAsStringSync().trim();
+    if (fileContent.isNotEmpty) {
+      contexts.add(fileContent);
+    }
+  }
+
+  if (normalizedInline != null && normalizedInline.isNotEmpty) {
+    contexts.add(normalizedInline);
+  }
+
+  if (contexts.isEmpty) {
+    return null;
+  }
+  return contexts.join('\n\n');
 }

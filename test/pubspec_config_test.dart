@@ -102,6 +102,9 @@ smart_arb_translator:
   auth_mode: service_account
   credentials_file: secrets/service-account.json
   quota_project_id: billing-project
+  openai_model: gpt-4.1-mini
+  translation_context: Keep product names in English
+  translation_context_file: docs/translation_context.md
 ''');
 
       final config = PubspecConfig.loadFromPubspec(tempPubspec.path);
@@ -126,6 +129,9 @@ smart_arb_translator:
       expect(config.authMode, equals('service_account'));
       expect(config.credentialsFile, equals('secrets/service-account.json'));
       expect(config.quotaProjectId, equals('billing-project'));
+      expect(config.openaiModel, equals('gpt-4.1-mini'));
+      expect(config.translationContext, equals('Keep product names in English'));
+      expect(config.translationContextFile, equals('docs/translation_context.md'));
     });
 
     test('should handle malformed YAML gracefully', () {

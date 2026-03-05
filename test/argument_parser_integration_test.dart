@@ -216,5 +216,59 @@ smart_arb_translator:
       expect(result[ArbTranslatorArgumentParser.credentialsFile], equals('secrets/service-account.json'));
       expect(result[ArbTranslatorArgumentParser.apiKey], isNull);
     });
+
+    test('should support openai settings from pubspec including translation context', () async {
+      File('${tempDir.path}/context.txt').writeAsStringSync('Use a friendly product tone');
+
+      tempPubspec.writeAsStringSync('''
+name: test_app
+version: 1.0.0
+
+smart_arb_translator:
+  source_dir: lib/l10n
+  translation_service: openai
+  api_key: openai_key.txt
+  openai_model: gpt-4.1-mini
+  translation_context: Keep product names in English
+  translation_context_file: context.txt
+''');
+
+      final result = await ArbTranslatorArgumentParser.parseArguments([]);
+      expect(result[ArbTranslatorArgumentParser.translationService], equals('openai'));
+      expect(result[ArbTranslatorArgumentParser.apiKey], equals('openai_key.txt'));
+      expect(result[ArbTranslatorArgumentParser.openaiModel], equals('gpt-4.1-mini'));
+      expect(result[ArbTranslatorArgumentParser.translationContext], equals('Keep product names in English'));
+      expect(result[ArbTranslatorArgumentParser.translationContextFile], equals('context.txt'));
+      expect(result[ArbTranslatorArgumentParser.authMode], equals('api_key'));
+    });
+
+    test('should allow CLI openai overrides for model and context', () async {
+      File('${tempDir.path}/style_guide.txt').writeAsStringSync('Prefer short verbs');
+
+      tempPubspec.writeAsStringSync('''
+name: test_app
+version: 1.0.0
+
+smart_arb_translator:
+  source_dir: lib/l10n
+  api_key: openai_key.txt
+''');
+
+      final result = await ArbTranslatorArgumentParser.parseArguments([
+        '--translation_service',
+        'openai',
+        '--openai_model',
+        'gpt-4.1-mini',
+        '--translation_context',
+        'Use casual tone',
+        '--translation_context_file',
+        'style_guide.txt',
+      ]);
+
+      expect(result[ArbTranslatorArgumentParser.translationService], equals('openai'));
+      expect(result[ArbTranslatorArgumentParser.openaiModel], equals('gpt-4.1-mini'));
+      expect(result[ArbTranslatorArgumentParser.translationContext], equals('Use casual tone'));
+      expect(result[ArbTranslatorArgumentParser.translationContextFile], equals('style_guide.txt'));
+    });
   });
 }

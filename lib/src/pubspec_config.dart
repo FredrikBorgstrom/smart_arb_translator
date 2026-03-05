@@ -25,7 +25,7 @@ class PubspecConfig {
   /// Directory containing source ARB files to translate recursively.
   final String? sourceDir;
 
-  /// Path to the Google Translate API key file.
+  /// Path to an API key file (Google or OpenAI depending on service).
   final String? apiKey;
 
   /// Directory where translation cache will be stored.
@@ -84,6 +84,15 @@ class PubspecConfig {
   /// Mapped to the `x-goog-user-project` header.
   final String? quotaProjectId;
 
+  /// OpenAI model to use when `translation_service` is `openai`.
+  final String? openaiModel;
+
+  /// Optional context prompt to guide LLM translations.
+  final String? translationContext;
+
+  /// Optional file path that contains translation context text.
+  final String? translationContextFile;
+
   /// Creates a new pubspec configuration instance.
   ///
   /// All parameters are optional and correspond to the configuration
@@ -108,6 +117,9 @@ class PubspecConfig {
     this.authMode,
     this.credentialsFile,
     this.quotaProjectId,
+    this.openaiModel,
+    this.translationContext,
+    this.translationContextFile,
   });
 
   /// Loads configuration from a pubspec.yaml file.
@@ -168,6 +180,9 @@ class PubspecConfig {
         authMode: config['auth_mode'] as String?,
         credentialsFile: config['credentials_file'] as String?,
         quotaProjectId: config['quota_project_id'] as String?,
+        openaiModel: config['openai_model'] as String?,
+        translationContext: config['translation_context'] as String?,
+        translationContextFile: config['translation_context_file'] as String?,
       );
     } catch (e) {
       // If there's any error reading the config, return null
@@ -231,7 +246,10 @@ class PubspecConfig {
         projectId != null ||
         authMode != null ||
         credentialsFile != null ||
-        quotaProjectId != null;
+        quotaProjectId != null ||
+        openaiModel != null ||
+        translationContext != null ||
+        translationContextFile != null;
   }
 
   /// Returns a string representation of this configuration.
@@ -259,7 +277,10 @@ class PubspecConfig {
         'projectId: $projectId, '
         'authMode: $authMode, '
         'credentialsFile: $credentialsFile, '
-        'quotaProjectId: $quotaProjectId'
+        'quotaProjectId: $quotaProjectId, '
+        'openaiModel: $openaiModel, '
+        'translationContext: $translationContext, '
+        'translationContextFile: $translationContextFile'
         ')';
   }
 }

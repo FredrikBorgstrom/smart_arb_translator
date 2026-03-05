@@ -1,7 +1,7 @@
 /// Smart ARB Translator - An intelligent command-line utility for translating ARB files
 ///
 /// This package provides smart translation capabilities for ARB (Application Resource Bundle) files
-/// using Google Translate API with features like:
+/// using Google Translate and OpenAI APIs with features like:
 /// - Smart change detection to only translate modified content
 /// - Modular architecture for better maintainability
 /// - Support for both single files and directory processing

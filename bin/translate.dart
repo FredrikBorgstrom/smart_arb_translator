@@ -36,6 +36,11 @@ Future<void> main(List<String> args) async {
     final authMode = result[ArbTranslatorArgumentParser.authMode] as String? ?? 'api_key';
     final credentialsFile = result[ArbTranslatorArgumentParser.credentialsFile] as String?;
     final quotaProjectId = result[ArbTranslatorArgumentParser.quotaProjectId] as String?;
+    final openaiModel = result[ArbTranslatorArgumentParser.openaiModel] as String? ?? 'gpt-4o-mini';
+    final translationContext = _readTranslationContext(
+      result[ArbTranslatorArgumentParser.translationContext] as String?,
+      result[ArbTranslatorArgumentParser.translationContextFile] as String?,
+    );
 
     // Determine processing mode
     final sourceArb = result[ArbTranslatorArgumentParser.sourceArb] as String?;
@@ -64,6 +69,8 @@ Future<void> main(List<String> args) async {
         authMode: authMode,
         credentialsFile: credentialsFile,
         quotaProjectId: quotaProjectId,
+        openaiModel: openaiModel,
+        translationContext: translationContext,
       );
     } else if (sourceDir != null) {
       // Directory processing
@@ -90,6 +97,8 @@ Future<void> main(List<String> args) async {
         authMode: authMode,
         credentialsFile: credentialsFile,
         quotaProjectId: quotaProjectId,
+        openaiModel: openaiModel,
+        translationContext: translationContext,
       );
     }
 
@@ -98,4 +107,30 @@ Future<void> main(List<String> args) async {
     print('\n❌ Error: $e');
     exit(1);
   }
+}
+
+String? _readTranslationContext(String? inlineContext, String? contextFilePath) {
+  final normalizedInline = inlineContext?.trim();
+  final normalizedPath = contextFilePath?.trim();
+
+  final contexts = <String>[];
+  if (normalizedPath != null && normalizedPath.isNotEmpty) {
+    final contextFile = File(normalizedPath);
+    if (!contextFile.existsSync()) {
+      throw ArgumentError('Translation context file does not exist: $normalizedPath');
+    }
+    final fileContent = contextFile.readAsStringSync().trim();
+    if (fileContent.isNotEmpty) {
+      contexts.add(fileContent);
+    }
+  }
+
+  if (normalizedInline != null && normalizedInline.isNotEmpty) {
+    contexts.add(normalizedInline);
+  }
+
+  if (contexts.isEmpty) {
+    return null;
+  }
+  return contexts.join('\n\n');
 }

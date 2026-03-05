@@ -8,7 +8,7 @@ import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/models/arb_resource.dart';
 import 'package:smart_arb_translator/src/utils.dart';
 
-/// Service class for handling translation operations using Google Translate API.
+/// Service class for handling translation operations using Google or OpenAI APIs.
 ///
 /// This class provides static methods for translating text content and managing
 /// translation workflows for ARB (Application Resource Bundle) files.
@@ -16,6 +16,8 @@ class TranslationService {
   static const String _cloudPlatformScope = 'https://www.googleapis.com/auth/cloud-platform';
   static const String _llmModelId = 'general/translation-llm';
   static const String _llmLocation = 'us-central1';
+  static const String _openAiDefaultModel = 'gpt-4o-mini';
+  static const String _openAiChatCompletionsUrl = 'https://api.openai.com/v1/chat/completions';
 
   /// Translates a list of texts using Google Translate API.
   ///
@@ -63,6 +65,12 @@ class TranslationService {
           credentialsFile: credentialsFile,
           quotaProjectId: quotaProjectId,
           accessToken: accessToken,
+          client: client,
+        );
+      case 'openai':
+        return _translateWithOpenAi(
+          translateList,
+          parameters,
           client: client,
         );
       case 'google_basic':
@@ -225,6 +233,61 @@ class TranslationService {
     return _extractV3Translations(response.body);
   }
 
+  static Future<List<String>> _translateWithOpenAi(
+    List<String> translateList,
+    Map<String, dynamic> parameters, {
+    http.Client? client,
+  }) async {
+    final apiKey = (parameters['key'] as String?)?.trim();
+    if (apiKey == null || apiKey.isEmpty) {
+      throw ArgumentError('API key is required when translation_service is "openai"');
+    }
+
+    final targetLanguage = (parameters['target'] as String?)?.trim();
+    if (targetLanguage == null || targetLanguage.isEmpty) {
+      throw ArgumentError('Target language is required when translation_service is "openai"');
+    }
+
+    final sourceLanguage = (parameters['source'] as String?)?.trim();
+    final translationContext = (parameters['translation_context'] as String?)?.trim();
+    final openAiModel = (parameters['openai_model'] as String?)?.trim();
+
+    final url = Uri.parse(_openAiChatCompletionsUrl);
+    final body = _buildOpenAiRequestBody(
+      translateList: translateList,
+      targetLanguage: targetLanguage,
+      sourceLanguage: sourceLanguage,
+      translationContext: translationContext,
+      model: openAiModel,
+    );
+
+    final response = await (client?.post(
+          url,
+          headers: <String, String>{
+            'Authorization': 'Bearer $apiKey',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(body),
+        ) ??
+        http.post(
+          url,
+          headers: <String, String>{
+            'Authorization': 'Bearer $apiKey',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(body),
+        ));
+
+    if (response.statusCode != 200) {
+      throw http.ClientException('Error ${response.statusCode}: ${response.body}', url);
+    }
+
+    return _extractOpenAiTranslations(
+      response.body,
+      expectedCount: translateList.length,
+    );
+  }
+
   static Future<String> _resolveOAuthAccessToken({
     required String authMode,
     String? credentialsFile,
@@ -289,12 +352,105 @@ class TranslationService {
     return body;
   }
 
+  static Map<String, dynamic> _buildOpenAiRequestBody({
+    required List<String> translateList,
+    required String targetLanguage,
+    required String? sourceLanguage,
+    required String? translationContext,
+    required String? model,
+  }) {
+    final systemPrompt = StringBuffer()
+      ..writeln('You are a professional localization translator for ARB resources.')
+      ..writeln('Translate each input string to the requested target language.')
+      ..writeln(
+          'Preserve ICU placeholders, HTML tags, line breaks, punctuation, and spacing exactly when they should not change meaning.')
+      ..writeln('Do not add or remove items, and keep the same order as the input list.')
+      ..writeln('Return strict JSON only in the format {"translations":["..."]}.');
+
+    if (translationContext != null && translationContext.isNotEmpty) {
+      systemPrompt
+        ..writeln()
+        ..writeln('Translation context and style guide:')
+        ..writeln(translationContext);
+    }
+
+    final userPayload = <String, dynamic>{
+      'target_language': targetLanguage,
+      'texts': translateList,
+    };
+
+    if (sourceLanguage != null && sourceLanguage.isNotEmpty) {
+      userPayload['source_language'] = sourceLanguage;
+    }
+
+    return <String, dynamic>{
+      'model': (model != null && model.isNotEmpty) ? model : _openAiDefaultModel,
+      'temperature': 0,
+      'response_format': {'type': 'json_object'},
+      'messages': [
+        {'role': 'system', 'content': systemPrompt.toString().trim()},
+        {'role': 'user', 'content': jsonEncode(userPayload)},
+      ],
+    };
+  }
+
   static List<String> _extractV3Translations(String responseBody) {
     final jsonData = jsonDecode(responseBody) as Map<String, dynamic>;
     final translations = List<Map<String, dynamic>>.from(
       jsonData['translations'] as Iterable,
     );
     return translations.map((t) => t['translatedText'] as String).toList();
+  }
+
+  static List<String> _extractOpenAiTranslations(
+    String responseBody, {
+    required int expectedCount,
+  }) {
+    final responseJson = jsonDecode(responseBody) as Map<String, dynamic>;
+    final choices = List<Map<String, dynamic>>.from(responseJson['choices'] as List<dynamic>? ?? const []);
+    if (choices.isEmpty) {
+      throw const FormatException('OpenAI response did not contain any choices.');
+    }
+
+    final message = choices.first['message'] as Map<String, dynamic>?;
+    final rawContent = message?['content'];
+    if (rawContent == null) {
+      throw const FormatException('OpenAI response did not contain message content.');
+    }
+
+    String content;
+    if (rawContent is String) {
+      content = rawContent;
+    } else if (rawContent is List) {
+      final textParts =
+          rawContent.map((part) => part is Map<String, dynamic> ? part['text'] : null).whereType<String>().join();
+      content = textParts;
+    } else {
+      throw const FormatException('OpenAI response content had an unexpected type.');
+    }
+
+    final normalizedContent = _stripJsonCodeFence(content.trim());
+    final parsedContent = jsonDecode(normalizedContent) as Map<String, dynamic>;
+    final translations = List<String>.from(
+      (parsedContent['translations'] as List<dynamic>? ?? const []).map((item) => item.toString()),
+    );
+
+    if (translations.length != expectedCount) {
+      throw FormatException(
+        'OpenAI returned ${translations.length} translations, expected $expectedCount.',
+      );
+    }
+
+    return translations;
+  }
+
+  static String _stripJsonCodeFence(String content) {
+    if (!content.startsWith('```')) {
+      return content;
+    }
+
+    final withoutOpening = content.replaceFirst(RegExp(r'^```(?:json)?\s*'), '');
+    return withoutOpening.replaceFirst(RegExp(r'\s*```$'), '');
   }
 
   /// Inserts manual translations from ARB document attributes into translation results.

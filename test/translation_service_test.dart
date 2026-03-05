@@ -127,5 +127,53 @@ void main() {
         throwsArgumentError,
       );
     });
+
+    test('translateTexts uses openai service with context and model', () async {
+      final mockClient = MockClient((request) async {
+        expect(request.url.host, 'api.openai.com');
+        expect(request.url.path, '/v1/chat/completions');
+        expect(request.headers['authorization'], 'Bearer openai-key');
+
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['model'], 'gpt-4.1-mini');
+        expect((body['response_format'] as Map<String, dynamic>)['type'], 'json_object');
+
+        final messages = List<Map<String, dynamic>>.from(body['messages'] as List<dynamic>);
+        expect(messages, hasLength(2));
+        expect(messages[0]['role'], 'system');
+        expect(messages[0]['content'] as String, contains('product names should stay in English'));
+        expect(messages[1]['role'], 'user');
+
+        return http.Response(
+          '{"choices":[{"message":{"content":"{\\"translations\\":[\\"Hola contexto\\"]}"}}]}',
+          200,
+        );
+      });
+
+      final result = await TranslationService.translateTexts(
+        translateList: ['Hello'],
+        parameters: {
+          'key': 'openai-key',
+          'target': 'es',
+          'openai_model': 'gpt-4.1-mini',
+          'translation_context': 'product names should stay in English',
+        },
+        translationService: 'openai',
+        client: mockClient,
+      );
+
+      expect(result, ['Hola contexto']);
+    });
+
+    test('translateTexts throws if API key is missing for openai', () async {
+      expect(
+        () => TranslationService.translateTexts(
+          translateList: ['Hello'],
+          parameters: {'target': 'es'},
+          translationService: 'openai',
+        ),
+        throwsArgumentError,
+      );
+    });
   });
 }

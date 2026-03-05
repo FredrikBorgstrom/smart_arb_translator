@@ -130,13 +130,20 @@ class ArbProcessor {
     String authMode = 'api_key',
     String? credentialsFile,
     String? quotaProjectId,
+    String openaiModel = 'gpt-4o-mini',
+    String? translationContext,
   }) async {
     var newArbDocument = arbDocument.copyWith(locale: languageCode);
 
     final futuresList = actionLists.map((list) {
       return TranslationService.translateTexts(
         translateList: list.map((action) => action.text).toList(),
-        parameters: <String, dynamic>{'target': languageCode, 'key': apiKey},
+        parameters: <String, dynamic>{
+          'target': languageCode,
+          'key': apiKey,
+          'openai_model': openaiModel,
+          'translation_context': translationContext,
+        },
         translationService: translationService,
         projectId: projectId,
         authMode: authMode,

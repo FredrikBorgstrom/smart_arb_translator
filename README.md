@@ -1,6 +1,6 @@
 # Smart ARB Translator
 
-A command-line utility for translating ARB (Application Resource Bundle) files using Google Translate API. This package features smart change detection that only translates messages that have been added or changed. This will keep your translation costs to a minimum. A cost-saving end-to-end solution that translates your messages to Dart classes in the languages of your choice.
+A command-line utility for translating ARB (Application Resource Bundle) files using Google Translate and OpenAI APIs. This package features smart change detection that only translates messages that have been added or changed. This will keep your translation costs to a minimum. A cost-saving end-to-end solution that translates your messages to Dart classes in the languages of your choice.
 
 ## 🚀 Features
 
@@ -12,7 +12,8 @@ A command-line utility for translating ARB (Application Resource Bundle) files u
 - **📝 Intelligent Setup**: Creates `l10n.yaml` or configures `pubspec.yaml` automatically
 - **🔧 Dart Code Generation**: Generate ready-to-use Dart localization code with either method or simply translate and use your own dart generator
 - **⚙️ Pubspec.yaml Configuration**: Configure all parameters directly in your `pubspec.yaml` file
-- **🆕 Translation Services**: Support for Google Translate v2 (Basic & NMT) and v3 (LLM)
+- **🆕 Translation Services**: Support for Google Translate v2 (Basic & NMT), Google v3 (LLM), and OpenAI models
+- **🆕 Translation Context**: Optional LLM context prompt (inline or file-based) for domain-specific tone/terminology
 - **Stats**: Gives you full statistics on the number of translations made
 
 
@@ -61,7 +62,7 @@ The tool will automatically prompt you to configure (hit `ENTER` key for default
 - **Source type**: Directory or single file
 - **Source path**: With smart defaults (lib/l10n_source for directories)
 - **Source locale**: With 'en' as default
-- **Translation service**: Google Basic/NMT (v2) or Google LLM (v3)
+- **Translation service**: Google Basic/NMT (v2), Google LLM (v3), or OpenAI
 - **Authentication mode**:
   - `api_key` for v2 (and legacy v3 mode)
   - `adc` for Google LLM with Application Default Credentials
@@ -94,8 +95,10 @@ Which translation service do you want to use?
    - Neural Machine Translation model
 3. Google LLM (v3)
    - Large Language Model translation (requires Project ID)
+4. OpenAI
+   - OpenAI chat model translation with optional context
 
-Enter your choice (1, 2, or 3) [default: 1]: 1
+Enter your choice (1, 2, 3, or 4) [default: 1]: 1
 
 Enter the path to your Google Translate API key file: secrets/api_key.txt
 
@@ -192,7 +195,16 @@ For `translation_service: google_llm`, Google Cloud Translation Advanced v3 is u
   - Kept for backward compatibility
   - Google v3 typically expects OAuth credentials
 
-### 2. ARB File Structure
+### 3. OpenAI Authentication
+
+For `translation_service: openai`, set `api_key` to your OpenAI API key (or a file containing the key).
+
+Optional OpenAI settings:
+- `openai_model`: e.g. `gpt-4o-mini`, `gpt-4.1-mini`
+- `translation_context`: inline translation guidance
+- `translation_context_file`: path to a text/markdown file with translation context
+
+### 4. ARB File Structure
 
 Ensure your ARB files follow the standard format:
 
@@ -247,7 +259,7 @@ smart_arb_translator:
   source_dir: lib/l10n                    # Directory containing ARB files
   # source_arb: lib/l10n/app_en.arb       # Single ARB file (alternative)
   
-  # Required for google_basic/google_nmt and google_llm with auth_mode=api_key
+  # Required for google_basic/google_nmt, openai, and google_llm with auth_mode=api_key
   api_key: secrets/google_translate_api_key.txt
   
   # Target languages (multiple formats supported)
@@ -269,11 +281,14 @@ smart_arb_translator:
   l10n_method: gen-l10n                    # Options: "gen-l10n", "intl_utils", or "none"
   
   # Translation Service Configuration
-  translation_service: google_basic          # Options: "google_basic" (v2), "google_nmt" (v2), "google_llm" (v3)
+  translation_service: openai                # Options: "google_basic" (v2), "google_nmt" (v2), "google_llm" (v3), "openai"
   project_id: my-gcp-project-id              # Required for "google_llm"
-  auth_mode: api_key                         # Options: "api_key", "adc", "service_account"
+  auth_mode: api_key                         # Options: "api_key", "adc", "service_account" (openai requires "api_key")
   credentials_file: secrets/service-account.json   # Required when auth_mode=service_account
   quota_project_id: my-billing-project-id    # Optional for OAuth requests (x-goog-user-project)
+  openai_model: gpt-4o-mini                  # Optional, used when translation_service=openai
+  translation_context: Keep product terms in English
+  translation_context_file: docs/translation_context.md
   
   # Automation
   auto_approve: false                      # Auto-approve pubspec.yaml modifications
@@ -346,6 +361,19 @@ smart_arb_translator \
   --generate_dart
 ```
 
+#### OpenAI with Translation Context
+
+```bash
+smart_arb_translator \
+  --source_dir lib/l10n \
+  --translation_service openai \
+  --api_key secrets/openai_api_key.txt \
+  --openai_model gpt-4o-mini \
+  --translation_context "Use gaming terminology from our style guide. Keep item names in English." \
+  --translation_context_file docs/translation_context.md \
+  --language_codes es,fr,de
+```
+
 ### Command Line Options
 
 All options can be configured in `pubspec.yaml` under the `smart_arb_translator` section. CLI arguments take precedence over pubspec.yaml settings.
@@ -354,7 +382,7 @@ All options can be configured in `pubspec.yaml` under the `smart_arb_translator`
 |--------|-------------|---------|------------------|
 | `--source_dir` | Source directory containing ARB files | - | `source_dir` |
 | `--source_arb` | Single ARB file to translate | - | `source_arb` |
-| `--api_key` | Path to Google Translate API key file | Required for `google_basic`/`google_nmt` and `google_llm` with `auth_mode=api_key` | `api_key` |
+| `--api_key` | Path to API key file | Required for `google_basic`, `google_nmt`, `openai`, and `google_llm` with `auth_mode=api_key` | `api_key` |
 | `--language_codes` | Comma-separated target language codes | `es` | `language_codes` |
 | `--cache_directory` | Directory for translation cache | `lib/l10n_cache` | `cache_directory` |
 | `--l10n_directory` | Output directory for merged files | `lib/l10n` | `l10n_directory` |
@@ -366,11 +394,14 @@ All options can be configured in `pubspec.yaml` under the `smart_arb_translator`
 | `--dart_main_locale` | Main locale for Dart code generation | `en` | `dart_main_locale` |
 | `--auto_approve` | Auto-approve configuration changes | `false` | `auto_approve` |
 | `--use_deferred_loading` | Enable deferred loading for locales (Flutter Web optimization) | `false` | `use_deferred_loading` |
-| `--translation_service` | Translation service: `google_basic`, `google_nmt`, or `google_llm` | `google_basic` | `translation_service` |
+| `--translation_service` | Translation service: `google_basic`, `google_nmt`, `google_llm`, or `openai` | `google_basic` | `translation_service` |
 | `--project_id` | Google Cloud Project ID (required for `google_llm`) | - | `project_id` |
 | `--auth_mode` | Auth mode: `api_key`, `adc`, or `service_account` | `api_key` | `auth_mode` |
 | `--credentials_file` | Path to service account JSON key file (required for `service_account`) | - | `credentials_file` |
 | `--quota_project_id` | Optional quota/billing project id for OAuth requests | - | `quota_project_id` |
+| `--openai_model` | OpenAI model to use when `translation_service=openai` | `gpt-4o-mini` | `openai_model` |
+| `--translation_context` | Optional context text for LLM translation style/tone | - | `translation_context` |
+| `--translation_context_file` | Optional file with context text for LLM translations | - | `translation_context_file` |
 
 
 ### Configuration Precedence

@@ -40,6 +40,9 @@ class ArbTranslatorArgumentParser {
   static const _authMode = 'auth_mode';
   static const _credentialsFile = 'credentials_file';
   static const _quotaProjectId = 'quota_project_id';
+  static const _openaiModel = 'openai_model';
+  static const _translationContext = 'translation_context';
+  static const _translationContextFile = 'translation_context_file';
 
   /// Initializes and configures the argument parser.
   ///
@@ -68,7 +71,7 @@ class ArbTranslatorArgumentParser {
       ..addMultiOption(_languageCodes, defaultsTo: ['es'])
       ..addOption(
         _apiKey,
-        help: 'path to api_key (required for google_basic/google_nmt and google_llm with auth_mode=api_key)',
+        help: 'path to api_key (required for google_basic/google_nmt, openai, and google_llm with auth_mode=api_key)',
       )
       ..addOption(
         _outputFileName,
@@ -118,8 +121,9 @@ class ArbTranslatorArgumentParser {
       )
       ..addOption(
         _translationService,
-        help: 'translation service to use: "google_basic" (v2), "google_nmt" (v2 with model=nmt), or "google_llm" (v3)',
-        allowed: ['google_basic', 'google_nmt', 'google_llm'],
+        help:
+            'translation service to use: "google_basic" (v2), "google_nmt" (v2 with model=nmt), "google_llm" (v3), or "openai"',
+        allowed: ['google_basic', 'google_nmt', 'google_llm', 'openai'],
         defaultsTo: 'google_basic',
       )
       ..addOption(
@@ -140,6 +144,19 @@ class ArbTranslatorArgumentParser {
       ..addOption(
         _quotaProjectId,
         help: 'quota/billing project id for OAuth requests (x-goog-user-project header)',
+      )
+      ..addOption(
+        _openaiModel,
+        help: 'OpenAI model to use when translation_service=openai',
+        defaultsTo: 'gpt-4o-mini',
+      )
+      ..addOption(
+        _translationContext,
+        help: 'optional context/instructions for LLM translations (google_llm or openai)',
+      )
+      ..addOption(
+        _translationContextFile,
+        help: 'path to a file containing translation context text (appended to translation_context)',
       );
 
     return parser;
@@ -225,11 +242,21 @@ class ArbTranslatorArgumentParser {
     final authMode = mergedResult[_authMode] as String? ?? 'api_key';
     final apiKey = (mergedResult[_apiKey] as String?)?.trim();
     final credentialsFile = (mergedResult[_credentialsFile] as String?)?.trim();
+    final translationContextFile = (mergedResult[_translationContextFile] as String?)?.trim();
 
-    final needsApiKey = translationService != 'google_llm' || authMode == 'api_key';
+    final needsApiKey =
+        translationService == 'google_basic' || translationService == 'google_nmt' || translationService == 'openai'
+            ? true
+            : authMode == 'api_key';
     if (needsApiKey && (apiKey == null || apiKey.isEmpty)) {
       _setBrightRed();
       stderr.write('--api_key is required (can be set in pubspec.yaml under smart_arb_translator section)');
+      exit(2);
+    }
+
+    if (translationService == 'openai' && authMode != 'api_key') {
+      _setBrightRed();
+      stderr.write('--auth_mode must be "api_key" when --translation_service is "openai".');
       exit(2);
     }
 
@@ -251,6 +278,15 @@ class ArbTranslatorArgumentParser {
               '--credentials_file is required when --auth_mode is "service_account" (or set GOOGLE_APPLICATION_CREDENTIALS).');
           exit(2);
         }
+      }
+    }
+
+    if (translationContextFile != null && translationContextFile.isNotEmpty) {
+      final contextFile = File(translationContextFile);
+      if (!contextFile.existsSync()) {
+        _setBrightRed();
+        stderr.write('--translation_context_file does not exist: $translationContextFile');
+        exit(2);
       }
     }
 
@@ -296,6 +332,13 @@ class ArbTranslatorArgumentParser {
     if (pubspecConfig.authMode != null) mergedOptions[_authMode] = pubspecConfig.authMode;
     if (pubspecConfig.credentialsFile != null) mergedOptions[_credentialsFile] = pubspecConfig.credentialsFile;
     if (pubspecConfig.quotaProjectId != null) mergedOptions[_quotaProjectId] = pubspecConfig.quotaProjectId;
+    if (pubspecConfig.openaiModel != null) mergedOptions[_openaiModel] = pubspecConfig.openaiModel;
+    if (pubspecConfig.translationContext != null) {
+      mergedOptions[_translationContext] = pubspecConfig.translationContext;
+    }
+    if (pubspecConfig.translationContextFile != null) {
+      mergedOptions[_translationContextFile] = pubspecConfig.translationContextFile;
+    }
 
     // Override with CLI arguments (CLI takes precedence)
     for (final option in cliResult.options) {
@@ -314,6 +357,7 @@ class ArbTranslatorArgumentParser {
     mergedOptions[_useDeferredLoading] ??= false;
     mergedOptions[_translationService] ??= 'google_basic';
     mergedOptions[_authMode] ??= 'api_key';
+    mergedOptions[_openaiModel] ??= 'gpt-4o-mini';
 
     return _MergedArgResults(mergedOptions, cliResult);
   }
@@ -373,8 +417,10 @@ class ArbTranslatorArgumentParser {
     print('   - Neural Machine Translation model');
     print('3. Google LLM (v3)');
     print('   - Large Language Model translation (requires Project ID)');
+    print('4. OpenAI');
+    print('   - Uses OpenAI chat models with optional translation context');
     print('');
-    print('Enter your choice (1, 2, or 3) [default: 1]: ');
+    print('Enter your choice (1, 2, 3, or 4) [default: 1]: ');
 
     final serviceInput = stdin.readLineSync()?.trim() ?? '';
     String service = 'google_basic';
@@ -383,6 +429,8 @@ class ArbTranslatorArgumentParser {
       service = 'google_nmt';
     } else if (serviceInput == '3') {
       service = 'google_llm';
+    } else if (serviceInput == '4') {
+      service = 'openai';
     }
 
     config[_translationService] = service;
@@ -432,6 +480,20 @@ class ArbTranslatorArgumentParser {
       } else {
         config[_authMode] = 'adc';
       }
+    } else if (service == 'openai') {
+      config[_authMode] = 'api_key';
+      print('\nEnter the path to your OpenAI API key file: ');
+      final apiKeyInput = stdin.readLineSync()?.trim() ?? '';
+      if (apiKeyInput.isEmpty) {
+        _setBrightRed();
+        stderr.write('OpenAI API key path is required.');
+        exit(2);
+      }
+      config[_apiKey] = apiKeyInput;
+
+      print('\nEnter OpenAI model (default: gpt-4o-mini): ');
+      final openAiModelInput = stdin.readLineSync()?.trim() ?? '';
+      config[_openaiModel] = openAiModelInput.isEmpty ? 'gpt-4o-mini' : openAiModelInput;
     } else {
       // V2 services require API key authentication
       config[_authMode] = 'api_key';
@@ -477,6 +539,14 @@ class ArbTranslatorArgumentParser {
     }
 
     config[_languageCodes] = languageCodes;
+
+    if (service == 'google_llm' || service == 'openai') {
+      print('\nOptional: add translation context/style guide (leave blank to skip): ');
+      final contextInput = stdin.readLineSync() ?? '';
+      if (contextInput.trim().isNotEmpty) {
+        config[_translationContext] = contextInput.trim();
+      }
+    }
 
     // Ask for localization method (including 'none' option)
     print('\nDo you want to generate Dart localization code?');
@@ -621,7 +691,10 @@ class ArbTranslatorArgumentParser {
       'project_id:',
       'auth_mode:',
       'credentials_file:',
-      'quota_project_id:'
+      'quota_project_id:',
+      'openai_model:',
+      'translation_context:',
+      'translation_context_file:'
     ];
     return configKeys.any((key) => trimmedLine.startsWith(key));
   }
@@ -688,6 +761,9 @@ class ArbTranslatorArgumentParser {
   static String get authMode => _authMode;
   static String get credentialsFile => _credentialsFile;
   static String get quotaProjectId => _quotaProjectId;
+  static String get openaiModel => _openaiModel;
+  static String get translationContext => _translationContext;
+  static String get translationContextFile => _translationContextFile;
 }
 
 /// Custom ArgResults implementation that merges CLI args with pubspec.yaml config

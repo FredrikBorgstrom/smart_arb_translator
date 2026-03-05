@@ -108,6 +108,8 @@ class DirectoryProcessor {
     String authMode = 'api_key',
     String? credentialsFile,
     String? quotaProjectId,
+    String openaiModel = 'gpt-4o-mini',
+    String? translationContext,
   }) async {
     dartClassName ??= (l10nMethod == 'gen-l10n') ? 'AppLocalizations' : 'S';
 
@@ -199,6 +201,8 @@ class DirectoryProcessor {
           authMode: authMode,
           credentialsFile: credentialsFile,
           quotaProjectId: quotaProjectId,
+          openaiModel: openaiModel,
+          translationContext: translationContext,
         );
       }
     }
