@@ -210,6 +210,30 @@ void main() {
       expect(result, ['Sviluppato da {company} in {country}']);
     });
 
+    test('translateTexts normalizes openai placeholder token variants', () async {
+      final sourceText =
+          '<span>Developed by <span class="notranslate">company</span> in <span class="notranslate">country</span></span>';
+
+      final mockClient = MockClient((request) async {
+        return http.Response(
+          '{"choices":[{"message":{"content":"{\\"translations\\":[\\"Sviluppato da __smart arb ph 0__ in __smart-arb-ph-1__\\"]}"}}]}',
+          200,
+        );
+      });
+
+      final result = await TranslationService.translateTexts(
+        translateList: [sourceText],
+        parameters: {
+          'key': 'openai-key',
+          'target': 'it',
+        },
+        translationService: 'openai',
+        client: mockClient,
+      );
+
+      expect(result, ['Sviluppato da {company} in {country}']);
+    });
+
     test('translateTexts throws when openai changes placeholder tokens', () async {
       final sourceText = '<span>Developed by <span class="notranslate">company</span></span>';
 

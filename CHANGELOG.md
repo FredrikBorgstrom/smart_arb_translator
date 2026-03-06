@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2] - 2026-03-06
+
+### Fixed
+- Improve OpenAI placeholder restoration by normalizing placeholder token variants (case/spacing/hyphen changes) before validation, while still failing when placeholders are missing or unexpected.
+
 ## [1.6.1] - 2026-03-05
 
 - Fixed bug where OpenAI would translate arb parameters

@@ -22,6 +22,11 @@ class TranslationService {
   static const String _openAiPlaceholderTokenSuffix = '__';
   static final RegExp _openAiNoTranslateRegex = RegExp(r'<span class="notranslate">(.*?)</span>', dotAll: true);
   static final RegExp _openAiOuterSpanRegex = RegExp(r'^<span>(.*)</span>$', dotAll: true);
+  static final RegExp _openAiCanonicalPlaceholderRegex = RegExp(r'__SMART_ARB_PH_(\d+)__');
+  static final RegExp _openAiPlaceholderVariantRegex = RegExp(
+    r'__(?:[\s_-])*smart(?:[\s_-])*arb(?:[\s_-])*ph(?:[\s_-])*(\d+)(?:[\s_-])*__',
+    caseSensitive: false,
+  );
 
   /// Translates a list of texts using Google Translate API.
   ///
@@ -507,8 +512,13 @@ class TranslationService {
 
     final restoredTranslations = <String>[];
     for (var i = 0; i < translations.length; i++) {
-      var translation = translations[i];
+      var translation = _normalizeOpenAiPlaceholderTokens(translations[i]);
       final placeholderTokenMap = placeholderTokensByText[i];
+      _assertKnownOpenAiPlaceholders(
+        translation: translation,
+        expectedTokens: placeholderTokenMap.keys,
+        itemIndex: i,
+      );
 
       for (final token in placeholderTokenMap.keys) {
         if (!translation.contains(token)) {
@@ -526,6 +536,38 @@ class TranslationService {
     }
 
     return restoredTranslations;
+  }
+
+  static String _normalizeOpenAiPlaceholderTokens(String translation) {
+    return translation.replaceAllMapped(_openAiPlaceholderVariantRegex, (match) {
+      final tokenIndex = match.group(1);
+      return '$_openAiPlaceholderTokenPrefix$tokenIndex$_openAiPlaceholderTokenSuffix';
+    });
+  }
+
+  static void _assertKnownOpenAiPlaceholders({
+    required String translation,
+    required Iterable<String> expectedTokens,
+    required int itemIndex,
+  }) {
+    final expectedTokenSet = expectedTokens.toSet();
+    if (expectedTokenSet.isEmpty) {
+      return;
+    }
+
+    final actualTokenSet = _openAiCanonicalPlaceholderRegex
+        .allMatches(translation)
+        .map((match) => match.group(0))
+        .whereType<String>()
+        .toSet();
+    final unexpectedTokens = actualTokenSet.difference(expectedTokenSet);
+
+    if (unexpectedTokens.isNotEmpty) {
+      throw FormatException(
+        'OpenAI response returned unexpected placeholder token(s) '
+        '${unexpectedTokens.join(', ')} in translation item ${itemIndex + 1}.',
+      );
+    }
   }
 
   /// Inserts manual translations from ARB document attributes into translation results.
