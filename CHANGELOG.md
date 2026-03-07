@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.5] - 2026-03-06
+
+### Fixed
+- Extend OpenAI recovery to placeholder-token failures: retry once when placeholders are dropped/modified, and allow per-item fallback for recoverable OpenAI format errors.
+
+## [1.6.4] - 2026-03-06
+
+### Fixed
+- Add a final OpenAI fallback path for persistent count mismatches: after one strict retry fails, retranslate the affected batch item-by-item to guarantee alignment and prevent crashes.
+
+## [1.6.3] - 2026-03-06
+
+### Fixed
+- Add OpenAI count-mismatch resilience by dropping extra empty translation entries and retrying once with stricter count instructions when the model returns too many items.
+
 ## [1.6.2] - 2026-03-06
 
 ### Fixed

@@ -246,6 +246,7 @@ class TranslationService {
     List<String> translateList,
     Map<String, dynamic> parameters, {
     http.Client? client,
+    bool allowPerItemFallback = true,
   }) async {
     final apiKey = (parameters['key'] as String?)?.trim();
     if (apiKey == null || apiKey.isEmpty) {
@@ -261,45 +262,54 @@ class TranslationService {
     final translationContext = (parameters['translation_context'] as String?)?.trim();
     final openAiModel = (parameters['openai_model'] as String?)?.trim();
     final preparedTexts = _prepareOpenAiTexts(translateList);
-
     final url = Uri.parse(_openAiChatCompletionsUrl);
-    final body = _buildOpenAiRequestBody(
-      translateList: preparedTexts.promptTexts,
-      targetLanguage: targetLanguage,
-      sourceLanguage: sourceLanguage,
-      translationContext: translationContext,
-      model: openAiModel,
-    );
+    try {
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try {
+          final response = await _callOpenAiChatCompletions(
+            url: url,
+            apiKey: apiKey,
+            body: _buildOpenAiRequestBody(
+              translateList: preparedTexts.promptTexts,
+              targetLanguage: targetLanguage,
+              sourceLanguage: sourceLanguage,
+              translationContext: translationContext,
+              model: openAiModel,
+              expectedCount: translateList.length,
+            strictRetryMode: attempt > 0,
+            ),
+            client: client,
+          );
 
-    final response = await (client?.post(
-          url,
-          headers: <String, String>{
-            'Authorization': 'Bearer $apiKey',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(body),
-        ) ??
-        http.post(
-          url,
-          headers: <String, String>{
-            'Authorization': 'Bearer $apiKey',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(body),
-        ));
-
-    if (response.statusCode != 200) {
-      throw http.ClientException('Error ${response.statusCode}: ${response.body}', url);
+          final extracted = _extractOpenAiTranslations(
+            response.body,
+            expectedCount: translateList.length,
+          );
+          return _restoreOpenAiPlaceholders(
+            extracted,
+            preparedTexts.placeholderTokensByText,
+          );
+        } on FormatException catch (error) {
+          final isFinalAttempt = attempt == 1;
+          final isRecoverableError = _isOpenAiRecoverableFormatError(error);
+          if (isFinalAttempt || !isRecoverableError) {
+            rethrow;
+          }
+        }
+      }
+    } on FormatException catch (error) {
+      final canFallback = allowPerItemFallback && translateList.length > 1;
+      if (canFallback && _isOpenAiRecoverableFormatError(error)) {
+        return _translateWithOpenAiPerItem(
+          translateList: translateList,
+          parameters: parameters,
+          client: client,
+        );
+      }
+      rethrow;
     }
 
-    final extracted = _extractOpenAiTranslations(
-      response.body,
-      expectedCount: translateList.length,
-    );
-    return _restoreOpenAiPlaceholders(
-      extracted,
-      preparedTexts.placeholderTokensByText,
-    );
+    throw FormatException('OpenAI returned an invalid translation count after retry.');
   }
 
   static Future<String> _resolveOAuthAccessToken({
@@ -372,6 +382,8 @@ class TranslationService {
     required String? sourceLanguage,
     required String? translationContext,
     required String? model,
+    required int expectedCount,
+    required bool strictRetryMode,
   }) {
     final systemPrompt = StringBuffer()
       ..writeln('You are a professional localization translator for ARB resources.')
@@ -381,7 +393,16 @@ class TranslationService {
       ..writeln(
           'Placeholder tokens follow the pattern "__SMART_ARB_PH_<number>__". Never translate, alter, remove, or reorder these tokens.')
       ..writeln('Do not add or remove items, and keep the same order as the input list.')
+      ..writeln('The "translations" array length must be exactly $expectedCount.')
       ..writeln('Return strict JSON only in the format {"translations":["..."]}.');
+
+    if (strictRetryMode) {
+      systemPrompt
+        ..writeln()
+        ..writeln('Critical: Your previous output violated constraints.')
+        ..writeln('Return exactly $expectedCount translations and nothing else.')
+        ..writeln('Preserve every placeholder token exactly (no edits or omissions).');
+    }
 
     if (translationContext != null && translationContext.isNotEmpty) {
       systemPrompt
@@ -447,9 +468,10 @@ class TranslationService {
 
     final normalizedContent = _stripJsonCodeFence(content.trim());
     final parsedContent = jsonDecode(normalizedContent) as Map<String, dynamic>;
-    final translations = List<String>.from(
+    var translations = List<String>.from(
       (parsedContent['translations'] as List<dynamic>? ?? const []).map((item) => item.toString()),
     );
+    translations = _normalizeOpenAiTranslationCount(translations, expectedCount);
 
     if (translations.length != expectedCount) {
       throw FormatException(
@@ -467,6 +489,83 @@ class TranslationService {
 
     final withoutOpening = content.replaceFirst(RegExp(r'^```(?:json)?\s*'), '');
     return withoutOpening.replaceFirst(RegExp(r'\s*```$'), '');
+  }
+
+  static List<String> _normalizeOpenAiTranslationCount(
+    List<String> translations,
+    int expectedCount,
+  ) {
+    if (translations.length == expectedCount) {
+      return translations;
+    }
+    if (translations.length <= expectedCount) {
+      return translations;
+    }
+
+    final withoutEmptyEntries = translations.where((item) => item.trim().isNotEmpty).toList();
+    if (withoutEmptyEntries.length == expectedCount) {
+      return withoutEmptyEntries;
+    }
+    return translations;
+  }
+
+  static bool _isOpenAiCountMismatchError(FormatException error) {
+    return error.message.startsWith('OpenAI returned ');
+  }
+
+  static bool _isOpenAiPlaceholderError(FormatException error) {
+    return error.message.startsWith('OpenAI response modified placeholder token');
+  }
+
+  static bool _isOpenAiRecoverableFormatError(FormatException error) {
+    return _isOpenAiCountMismatchError(error) || _isOpenAiPlaceholderError(error);
+  }
+
+  static Future<List<String>> _translateWithOpenAiPerItem({
+    required List<String> translateList,
+    required Map<String, dynamic> parameters,
+    required http.Client? client,
+  }) async {
+    final translated = <String>[];
+    for (final text in translateList) {
+      final singleResult = await _translateWithOpenAi(
+        [text],
+        parameters,
+        client: client,
+        allowPerItemFallback: false,
+      );
+      translated.add(singleResult.first);
+    }
+    return translated;
+  }
+
+  static Future<http.Response> _callOpenAiChatCompletions({
+    required Uri url,
+    required String apiKey,
+    required Map<String, dynamic> body,
+    required http.Client? client,
+  }) async {
+    final response = await (client?.post(
+          url,
+          headers: <String, String>{
+            'Authorization': 'Bearer $apiKey',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(body),
+        ) ??
+        http.post(
+          url,
+          headers: <String, String>{
+            'Authorization': 'Bearer $apiKey',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(body),
+        ));
+
+    if (response.statusCode != 200) {
+      throw http.ClientException('Error ${response.statusCode}: ${response.body}', url);
+    }
+    return response;
   }
 
   static _OpenAiPreparedTexts _prepareOpenAiTexts(List<String> translateList) {

@@ -257,5 +257,128 @@ void main() {
         throwsA(isA<FormatException>()),
       );
     });
+
+    test('translateTexts removes extra empty openai list entries', () async {
+      final mockClient = MockClient((request) async {
+        return http.Response(
+          '{"choices":[{"message":{"content":"{\\"translations\\":[\\"Salom\\",\\"\\"]}"}}]}',
+          200,
+        );
+      });
+
+      final result = await TranslationService.translateTexts(
+        translateList: ['Hello'],
+        parameters: {
+          'key': 'openai-key',
+          'target': 'uz',
+        },
+        translationService: 'openai',
+        client: mockClient,
+      );
+
+      expect(result, ['Salom']);
+    });
+
+    test('translateTexts retries once when openai returns wrong count', () async {
+      var calls = 0;
+      final mockClient = MockClient((request) async {
+        calls++;
+        if (calls == 1) {
+          return http.Response(
+            '{"choices":[{"message":{"content":"{\\"translations\\":[\\"A\\",\\"B\\"]}"}}]}',
+            200,
+          );
+        }
+        return http.Response(
+          '{"choices":[{"message":{"content":"{\\"translations\\":[\\"A\\"]}"}}]}',
+          200,
+        );
+      });
+
+      final result = await TranslationService.translateTexts(
+        translateList: ['Hello'],
+        parameters: {
+          'key': 'openai-key',
+          'target': 'uz',
+        },
+        translationService: 'openai',
+        client: mockClient,
+      );
+
+      expect(result, ['A']);
+      expect(calls, 2);
+    });
+
+    test('translateTexts falls back to per-item translation on persistent count mismatch', () async {
+      var batchCalls = 0;
+      var singleCalls = 0;
+
+      final mockClient = MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final messages = List<Map<String, dynamic>>.from(body['messages'] as List<dynamic>);
+        final userPayload = jsonDecode(messages[1]['content'] as String) as Map<String, dynamic>;
+        final texts = List<String>.from((userPayload['texts'] as List<dynamic>).map((e) => e.toString()));
+
+        if (texts.length == 2) {
+          batchCalls++;
+          return http.Response(
+            '{"choices":[{"message":{"content":"{\\"translations\\":[\\"only-one\\"]}"}}]}',
+            200,
+          );
+        }
+
+        singleCalls++;
+        return http.Response(
+          '{"choices":[{"message":{"content":"{\\"translations\\":[\\"${texts.first}-ok\\"]}"}}]}',
+          200,
+        );
+      });
+
+      final result = await TranslationService.translateTexts(
+        translateList: ['first', 'second'],
+        parameters: {
+          'key': 'openai-key',
+          'target': 'uz',
+        },
+        translationService: 'openai',
+        client: mockClient,
+      );
+
+      expect(result, ['first-ok', 'second-ok']);
+      expect(batchCalls, 2);
+      expect(singleCalls, 2);
+    });
+
+    test('translateTexts retries when openai drops placeholder tokens', () async {
+      var calls = 0;
+      final sourceText = '<span>Developed by <span class="notranslate">company</span></span>';
+
+      final mockClient = MockClient((request) async {
+        calls++;
+        if (calls == 1) {
+          return http.Response(
+            '{"choices":[{"message":{"content":"{\\"translations\\":[\\"Sviluppato da azienda\\"]}"}}]}',
+            200,
+          );
+        }
+        return http.Response(
+          '{"choices":[{"message":{"content":"{\\"translations\\":[\\"Sviluppato da __SMART_ARB_PH_0__\\"]}"}}]}',
+          200,
+        );
+      });
+
+      final result = await TranslationService.translateTexts(
+        translateList: [sourceText],
+        parameters: {
+          'key': 'openai-key',
+          'target': 'it',
+        },
+        translationService: 'openai',
+        client: mockClient,
+      );
+
+      expect(result, ['Sviluppato da {company}']);
+      expect(calls, 2);
+    });
   });
 }
