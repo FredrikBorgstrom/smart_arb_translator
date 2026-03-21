@@ -23,6 +23,8 @@ class ArbTranslatorArgumentParser {
   static const _sourceDir = 'source_dir';
   static const _apiKey = 'api_key';
   static const _help = 'help';
+  static const _cleanCorruptedCache = 'clean-corrupted-cache';
+  static const _dryRun = 'dry-run';
   static const _cacheDirectory = 'cache_directory';
   static const _languageCodes = 'language_codes';
   static const _outputFileName = 'output_file_name';
@@ -55,6 +57,16 @@ class ArbTranslatorArgumentParser {
 
     parser
       ..addFlag('help', hide: true, abbr: 'h')
+      ..addFlag(
+        _cleanCorruptedCache,
+        help: 'remove only known-corrupted translation cache entries and exit',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        _dryRun,
+        help: 'report what would change without modifying files',
+        defaultsTo: false,
+      )
       ..addOption(
         _sourceArb,
         help: 'source_arb file acts as main file to be translated to other '
@@ -192,8 +204,9 @@ class ArbTranslatorArgumentParser {
   /// ]);
   /// ```
   static Future<ArgResults> parseArguments(List<String> args) async {
+    final normalizedArgs = _normalizeFlagAliases(args);
     final parser = _initiateParse();
-    final result = parser.parse(args);
+    final result = parser.parse(normalizedArgs);
 
     if (result[_help] as bool? ?? false) {
       print(parser.usage);
@@ -205,6 +218,14 @@ class ArbTranslatorArgumentParser {
 
     // Create merged configuration with CLI args taking precedence
     var mergedResult = _mergeWithPubspecConfig(result, pubspecConfig);
+    final cleanupMode = mergedResult[_cleanCorruptedCache] as bool? ?? false;
+
+    if (cleanupMode) {
+      if (!_wasOptionExplicitlyProvided(normalizedArgs, _languageCodes)) {
+        mergedResult = _updateMergedResult(mergedResult, {_languageCodes: null});
+      }
+      return mergedResult;
+    }
 
     // Check if auto-configuration is needed
     final hasSourceArb = mergedResult[_sourceArb] != null;
@@ -739,11 +760,28 @@ class ArbTranslatorArgumentParser {
     Console.setTextColor(1, bright: true);
   }
 
+  static List<String> _normalizeFlagAliases(List<String> args) {
+    return args
+        .map((arg) => switch (arg) {
+              '--clean_corrupted_cache' => '--clean-corrupted-cache',
+              '--dry_run' => '--dry-run',
+              _ => arg,
+            })
+        .toList();
+  }
+
+  static bool _wasOptionExplicitlyProvided(List<String> args, String optionName) {
+    final prefixedName = '--$optionName';
+    return args.any((arg) => arg == prefixedName || arg.startsWith('$prefixedName='));
+  }
+
   // Getters for argument names
   static String get sourceArb => _sourceArb;
   static String get sourceDir => _sourceDir;
   static String get apiKey => _apiKey;
   static String get help => _help;
+  static String get cleanCorruptedCache => _cleanCorruptedCache;
+  static String get dryRun => _dryRun;
   static String get cacheDirectory => _cacheDirectory;
   static String get languageCodes => _languageCodes;
   static String get outputFileName => _outputFileName;

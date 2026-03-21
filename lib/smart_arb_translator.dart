@@ -17,6 +17,7 @@ library;
 
 export 'src/arb_processor.dart';
 export 'src/argument_parser.dart';
+export 'src/cache_cleanup.dart';
 export 'src/console_utils.dart';
 export 'src/dart_code_generator.dart';
 export 'src/directory_processor.dart';

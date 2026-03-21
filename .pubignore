@@ -1,0 +1,6 @@
+smart_arb_translator
+dart_secrets/
+resources/api_key
+example/flutter_app/api_key.txt
+test_output/
+reproduce_issue/

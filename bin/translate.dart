@@ -3,6 +3,7 @@
 import 'dart:io';
 
 import 'package:smart_arb_translator/src/argument_parser.dart';
+import 'package:smart_arb_translator/src/cache_cleanup.dart';
 import 'package:smart_arb_translator/src/directory_processor.dart';
 import 'package:smart_arb_translator/src/single_file_processor.dart';
 
@@ -10,6 +11,40 @@ Future<void> main(List<String> args) async {
   try {
     // Parse arguments (now async to handle auto-configuration)
     final result = await ArbTranslatorArgumentParser.parseArguments(args);
+    final cleanupMode = result[ArbTranslatorArgumentParser.cleanCorruptedCache] as bool? ?? false;
+
+    if (cleanupMode) {
+      final cacheDirectory = result[ArbTranslatorArgumentParser.cacheDirectory] as String? ?? 'lib/l10n_cache';
+      final languageCodes = (result[ArbTranslatorArgumentParser.languageCodes] as List<String>?)
+          ?.map((code) => code.trim())
+          .where((code) => code.isNotEmpty)
+          .toSet();
+      final dryRun = result[ArbTranslatorArgumentParser.dryRun] as bool? ?? false;
+
+      final cleanupResult = CacheCleanupService.cleanCorruptedCache(
+        cacheDirectory: cacheDirectory,
+        locales: languageCodes == null || languageCodes.isEmpty ? null : languageCodes,
+        dryRun: dryRun,
+      );
+
+      if (!cleanupResult.hasChanges) {
+        print('\n✅ No corrupted cached keys found.');
+        return;
+      }
+
+      final sortedLocales = cleanupResult.removedKeysByLocale.keys.toList()..sort();
+      for (final locale in sortedLocales) {
+        final removedKeys = cleanupResult.removedKeysByLocale[locale]!;
+        print('${dryRun ? 'Would remove' : 'Removed'} ${removedKeys.length} corrupted cached keys from $locale');
+      }
+      print(
+        '\n✅ ${dryRun ? 'Would remove' : 'Removed'} ${cleanupResult.totalRemoved} corrupted cached keys across ${cleanupResult.affectedLocales} locales.',
+      );
+      if (!dryRun) {
+        print('Run smart_arb_translator again to refill the missing translations from cache.');
+      }
+      return;
+    }
 
     // Extract common parameters
     final languageCodes = result[ArbTranslatorArgumentParser.languageCodes] as List<String>;

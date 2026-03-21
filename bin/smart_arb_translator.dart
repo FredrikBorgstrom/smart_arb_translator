@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:console/console.dart';
 import 'package:path/path.dart' as path;
 import 'package:smart_arb_translator/src/argument_parser.dart';
+import 'package:smart_arb_translator/src/cache_cleanup.dart';
 import 'package:smart_arb_translator/src/console_utils.dart';
 import 'package:smart_arb_translator/src/directory_processor.dart';
 import 'package:smart_arb_translator/src/single_file_processor.dart';
@@ -21,6 +22,47 @@ void main(List<String> args) async {
   Console.init();
 
   final result = await ArbTranslatorArgumentParser.parseArguments(args);
+  final cleanupMode = result[ArbTranslatorArgumentParser.cleanCorruptedCache] as bool? ?? false;
+
+  if (cleanupMode) {
+    final cachePath = result[ArbTranslatorArgumentParser.cacheDirectory] as String? ?? path.join('lib', 'l10n_cache');
+    final languageCodes = (result[ArbTranslatorArgumentParser.languageCodes] as List<String>?)
+        ?.map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet();
+    final dryRun = result[ArbTranslatorArgumentParser.dryRun] as bool? ?? false;
+
+    print('${'-' * 15}  $name $version  ${'-' * 15}');
+
+    final cleanupResult = CacheCleanupService.cleanCorruptedCache(
+      cacheDirectory: cachePath,
+      locales: languageCodes == null || languageCodes.isEmpty ? null : languageCodes,
+      dryRun: dryRun,
+    );
+
+    if (!cleanupResult.hasChanges) {
+      ConsoleUtils.setBrightGreen();
+      print('✓ No corrupted cached keys found');
+      ConsoleUtils.resetTextColor();
+      return;
+    }
+
+    final sortedLocales = cleanupResult.removedKeysByLocale.keys.toList()..sort();
+    for (final locale in sortedLocales) {
+      final removedKeys = cleanupResult.removedKeysByLocale[locale]!;
+      print('${dryRun ? 'Would remove' : 'Removed'} ${removedKeys.length} corrupted cached keys from $locale');
+    }
+
+    ConsoleUtils.setBrightGreen();
+    print(
+      '✓ ${dryRun ? 'Would remove' : 'Removed'} ${cleanupResult.totalRemoved} corrupted cached keys across ${cleanupResult.affectedLocales} locales',
+    );
+    ConsoleUtils.resetTextColor();
+    if (!dryRun) {
+      print('Run smart_arb_translator again to refill the missing translations.');
+    }
+    return;
+  }
 
   final sourcePath = result[ArbTranslatorArgumentParser.sourceDir] as String?;
   final sourceArb = result[ArbTranslatorArgumentParser.sourceArb] as String?;

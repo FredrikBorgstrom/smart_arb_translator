@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-03-21
+
+### Added
+- Add `--clean-corrupted-cache` recovery mode to remove only known-bad cached translations from buggy package versions.
+- Add `--dry-run` support for cache cleanup so users can inspect affected locales before modifying files.
+- Add locale filtering for cache cleanup through `--language_codes`.
+
+### Fixed
+- Fix parameterized/ICU translation corruption where manual `x-translations` or English ICU branches could be embedded into cached localized strings.
+- Fix OpenAI retry handling so unchanged English parameterized strings are treated as recoverable failures instead of being cached as valid translations.
+
+### Usage
+```bash
+smart_arb_translator --clean-corrupted-cache --dry-run
+smart_arb_translator --clean-corrupted-cache --language_codes ar,sv
+smart_arb_translator --clean-corrupted-cache
+```
+
 ## [1.6.5] - 2026-03-06
 
 ### Fixed

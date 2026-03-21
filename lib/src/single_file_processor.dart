@@ -379,10 +379,7 @@ class SingleFileProcessor {
           );
         }).toList();
 
-        var translateResults = await Future.wait(futuresList);
-
-        translateResults =
-            TranslationService.insertManualTranslations(translateResults, actionLists, languageCode, tempDocument);
+        final translateResults = await Future.wait(futuresList);
 
         // Apply translations to the document
         for (var i = translateResults.length - 1; i >= 0; i--) {
@@ -407,6 +404,12 @@ class SingleFileProcessor {
           }
         }
       }
+
+      newArbDocument = TranslationService.applyManualTranslationsToDocument(
+        translatedDocument: newArbDocument,
+        languageCode: languageCode,
+        sourceDocument: tempDocument,
+      );
 
       // Ensure all source keys are present (even if not translated)
       for (final entry in sourceDocument.resources.entries) {

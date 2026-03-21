@@ -152,10 +152,7 @@ class ArbProcessor {
       );
     }).toList();
 
-    var translateResults = await Future.wait(futuresList);
-
-    translateResults =
-        TranslationService.insertManualTranslations(translateResults, actionLists, languageCode, arbDocument);
+    final translateResults = await Future.wait(futuresList);
 
     // This is reversed so that end operations replace contents in string
     // before the beginning ones.
@@ -184,6 +181,12 @@ class ArbProcessor {
         );
       }
     }
+
+    newArbDocument = TranslationService.applyManualTranslationsToDocument(
+      translatedDocument: newArbDocument,
+      languageCode: languageCode,
+      sourceDocument: arbDocument,
+    );
 
     final file = await File(
       path.join(outputDirectory, outputFileName),

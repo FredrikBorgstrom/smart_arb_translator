@@ -14,6 +14,7 @@ A command-line utility for translating ARB (Application Resource Bundle) files u
 - **⚙️ Pubspec.yaml Configuration**: Configure all parameters directly in your `pubspec.yaml` file
 - **🆕 Translation Services**: Support for Google Translate v2 (Basic & NMT), Google v3 (LLM), and OpenAI models
 - **🆕 Translation Context**: Optional LLM context prompt (inline or file-based) for domain-specific tone/terminology
+- **🧹 Corrupted Cache Recovery**: Remove only known-bad cached translations from buggy package versions without deleting the whole cache
 - **Stats**: Gives you full statistics on the number of translations made
 
 
@@ -31,7 +32,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dev_dependencies:
-  smart_arb_translator: ^1.2.0
+  smart_arb_translator: ^1.7.0
 ```
 
 Then run:
@@ -136,6 +137,37 @@ Then run without any arguments:
 ```bash
 dart run smart_arb_translator
 ```
+
+### 3. Repair Corrupted Cache Entries
+
+If you previously ran a buggy version that cached broken ICU or parameterized translations, you can remove only the bad cache entries instead of deleting the whole cache:
+
+```bash
+dart run smart_arb_translator --clean-corrupted-cache --dry-run
+```
+
+If the dry run looks correct, apply the cleanup:
+
+```bash
+dart run smart_arb_translator --clean-corrupted-cache
+```
+
+To clean only specific locales:
+
+```bash
+dart run smart_arb_translator --clean-corrupted-cache --language_codes ar,sv
+```
+
+How it works:
+- Removes only cached translations that match known corruption patterns from earlier package bugs
+- Keeps valid cached translations intact
+- Uses `cache_directory` from your CLI or `pubspec.yaml` configuration
+- Uses `language_codes` only as an optional cleanup filter in this mode
+
+Typical recovery flow:
+1. Run `--clean-corrupted-cache --dry-run`
+2. Run `--clean-corrupted-cache`
+3. Run `smart_arb_translator` normally to refill only the missing translations
 
 ### 4. One-Command Translation + Code Generation
 

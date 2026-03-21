@@ -27,6 +27,9 @@ class TranslationService {
     r'__(?:[\s_-])*smart(?:[\s_-])*arb(?:[\s_-])*ph(?:[\s_-])*(\d+)(?:[\s_-])*__',
     caseSensitive: false,
   );
+  static final RegExp _comparisonWhitespaceRegex = RegExp(r'\s+');
+  static final RegExp _comparisonPlaceholderRegex = RegExp(r'\{[^}]+\}');
+  static final RegExp _englishWordRegex = RegExp(r'[A-Za-z]{3,}');
 
   /// Translates a list of texts using Google Translate API.
   ///
@@ -285,10 +288,17 @@ class TranslationService {
             response.body,
             expectedCount: translateList.length,
           );
-          return _restoreOpenAiPlaceholders(
+          final restoredTranslations = _restoreOpenAiPlaceholders(
             extracted,
             preparedTexts.placeholderTokensByText,
           );
+          _assertTranslationsLikelyLocalized(
+            translations: restoredTranslations,
+            promptTexts: preparedTexts.promptTexts,
+            placeholderTokensByText: preparedTexts.placeholderTokensByText,
+            targetLanguage: targetLanguage,
+          );
+          return restoredTranslations;
         } on FormatException catch (error) {
           final isFinalAttempt = attempt == 1;
           final isRecoverableError = _isOpenAiRecoverableFormatError(error);
@@ -517,8 +527,14 @@ class TranslationService {
     return error.message.startsWith('OpenAI response modified placeholder token');
   }
 
+  static bool _isOpenAiUntranslatedError(FormatException error) {
+    return error.message.startsWith('OpenAI left source text untranslated in translation item');
+  }
+
   static bool _isOpenAiRecoverableFormatError(FormatException error) {
-    return _isOpenAiCountMismatchError(error) || _isOpenAiPlaceholderError(error);
+    return _isOpenAiCountMismatchError(error) ||
+        _isOpenAiPlaceholderError(error) ||
+        _isOpenAiUntranslatedError(error);
   }
 
   static Future<List<String>> _translateWithOpenAiPerItem({
@@ -637,6 +653,69 @@ class TranslationService {
     return restoredTranslations;
   }
 
+  static void _assertTranslationsLikelyLocalized({
+    required List<String> translations,
+    required List<String> promptTexts,
+    required List<Map<String, String>> placeholderTokensByText,
+    required String targetLanguage,
+  }) {
+    final normalizedTargetLanguage = targetLanguage.trim().toLowerCase();
+    if (normalizedTargetLanguage == 'en' ||
+        normalizedTargetLanguage.startsWith('en-') ||
+        normalizedTargetLanguage.startsWith('en_')) {
+      return;
+    }
+
+    for (var i = 0; i < translations.length; i++) {
+      final restoredSource = _restorePromptPlaceholders(
+        promptTexts[i],
+        placeholderTokensByText[i],
+      );
+      if (_looksLikelyUntranslated(
+        sourceText: restoredSource,
+        translatedText: translations[i],
+      )) {
+        throw FormatException(
+          'OpenAI left source text untranslated in translation item ${i + 1}.',
+        );
+      }
+    }
+  }
+
+  static String _restorePromptPlaceholders(
+    String promptText,
+    Map<String, String> placeholderTokenMap,
+  ) {
+    var restored = promptText;
+    placeholderTokenMap.forEach((token, placeholderName) {
+      restored = restored.replaceAll(token, '{$placeholderName}');
+    });
+    return restored;
+  }
+
+  static bool _looksLikelyUntranslated({
+    required String sourceText,
+    required String translatedText,
+  }) {
+    final normalizedSource = _normalizeComparisonText(sourceText);
+    final normalizedTranslation = _normalizeComparisonText(translatedText);
+    if (normalizedSource.isEmpty || normalizedSource != normalizedTranslation) {
+      return false;
+    }
+
+    final sourceWithoutPlaceholders = sourceText.replaceAll(_comparisonPlaceholderRegex, ' ');
+    final englishWords = _englishWordRegex
+        .allMatches(sourceWithoutPlaceholders)
+        .map((match) => match.group(0)!)
+        .toList();
+
+    return englishWords.length >= 3;
+  }
+
+  static String _normalizeComparisonText(String text) {
+    return text.replaceAll(_comparisonWhitespaceRegex, ' ').trim();
+  }
+
   static String _normalizeOpenAiPlaceholderTokens(String translation) {
     return translation.replaceAllMapped(_openAiPlaceholderVariantRegex, (match) {
       final tokenIndex = match.group(1);
@@ -703,6 +782,33 @@ class TranslationService {
       }
     }
     return updatedTranslationsLists;
+  }
+
+  /// Applies whole-resource manual translations from `x-translations`.
+  ///
+  /// ARB manual translations are defined on the resource metadata, not on
+  /// individual ICU/plural tokens. Applying them token-by-token can corrupt
+  /// plural/select messages by inserting the full translated resource into each
+  /// branch. This helper applies those overrides once per resource after any
+  /// token-level translation work has completed.
+  static ArbDocument applyManualTranslationsToDocument({
+    required ArbDocument translatedDocument,
+    required String languageCode,
+    required ArbDocument sourceDocument,
+  }) {
+    final updatedResources = <String, ArbResource>{...translatedDocument.resources};
+
+    for (final entry in sourceDocument.resources.entries) {
+      final manualTranslation = entry.value.attributes?.xTranslations?[languageCode];
+      if (manualTranslation is! String || manualTranslation.isEmpty) {
+        continue;
+      }
+
+      final existingResource = updatedResources[entry.key] ?? entry.value;
+      updatedResources[entry.key] = existingResource.copyWith(text: manualTranslation);
+    }
+
+    return translatedDocument.copyWith(resources: updatedResources);
   }
 
   /// Sanitizes a translated string by removing HTML entities and tags.

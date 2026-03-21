@@ -135,6 +135,44 @@ smart_arb_translator:
       expect(result[ArbTranslatorArgumentParser.languageCodes], equals(['es', 'fr', 'de', 'it']));
     });
 
+    test('should allow clean-corrupted-cache mode without source or api key', () async {
+      tempPubspec.writeAsStringSync('''
+name: test_app
+version: 1.0.0
+''');
+
+      final result = await ArbTranslatorArgumentParser.parseArguments([
+        '--clean-corrupted-cache',
+      ]);
+
+      expect(result[ArbTranslatorArgumentParser.cleanCorruptedCache], isTrue);
+      expect(result[ArbTranslatorArgumentParser.sourceDir], isNull);
+      expect(result[ArbTranslatorArgumentParser.sourceArb], isNull);
+      expect(result[ArbTranslatorArgumentParser.apiKey], isNull);
+      expect(result[ArbTranslatorArgumentParser.languageCodes], isNull);
+    });
+
+    test('should support cleanup flag aliases and explicit language filtering', () async {
+      tempPubspec.writeAsStringSync('''
+name: test_app
+version: 1.0.0
+
+smart_arb_translator:
+  language_codes: [de, it]
+''');
+
+      final result = await ArbTranslatorArgumentParser.parseArguments([
+        '--clean_corrupted_cache',
+        '--dry_run',
+        '--language_codes',
+        'sv,ar',
+      ]);
+
+      expect(result[ArbTranslatorArgumentParser.cleanCorruptedCache], isTrue);
+      expect(result[ArbTranslatorArgumentParser.dryRun], isTrue);
+      expect(result[ArbTranslatorArgumentParser.languageCodes], equals(['sv', 'ar']));
+    });
+
     test('should handle use_deferred_loading parameter from CLI and pubspec', () async {
       tempPubspec.writeAsStringSync('''
 name: test_app

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/translation_service.dart';
 import 'package:test/test.dart';
 
@@ -379,6 +380,89 @@ void main() {
 
       expect(result, ['Sviluppato da {company}']);
       expect(calls, 2);
+    });
+
+    test('translateTexts retries when openai leaves multi-word source text untranslated', () async {
+      var calls = 0;
+
+      final mockClient = MockClient((request) async {
+        calls++;
+        if (calls == 1) {
+          return http.Response(
+            '{"choices":[{"message":{"content":"{\\"translations\\":[\\"You swapped one game tile\\"]}"}}]}',
+            200,
+          );
+        }
+
+        return http.Response.bytes(
+          utf8.encode(
+            '{"choices":[{"message":{"content":"{\\"translations\\":[\\"لقد بدلت قطعة لعبة واحدة\\"]}"}}]}',
+          ),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final result = await TranslationService.translateTexts(
+        translateList: ['You swapped one game tile'],
+        parameters: {
+          'key': 'openai-key',
+          'target': 'ar',
+        },
+        translationService: 'openai',
+        client: mockClient,
+      );
+
+      expect(result, ['لقد بدلت قطعة لعبة واحدة']);
+      expect(calls, 2);
+    });
+
+    test('applyManualTranslationsToDocument applies plural manual overrides per resource', () {
+      final sourceDocument = ArbDocument.decode(
+        '''
+{
+  "@@locale": "en",
+  "playTurnSuccess": "{wordsCount, plural, one{You played the word {words} and scored {points} points.} other{You played the words {words} and scored {points} points.}}",
+  "@playTurnSuccess": {
+    "description": "Shown after a successful turn",
+    "placeholders": {
+      "wordsCount": {
+        "type": "int"
+      },
+      "words": {
+        "type": "String"
+      },
+      "points": {
+        "type": "int"
+      }
+    },
+    "x-translations": {
+      "ar": "{wordsCount, plural, one{لقد لعبت الكلمة {words} وحصلت على {points} نقطة.} other{لقد لعبت الكلمات {words} وحصلت على {points} نقطة.}}"
+    }
+  }
+}
+''',
+      );
+
+      final translatedDocument = ArbDocument.decode(
+        '''
+{
+  "@@locale": "ar",
+  "playTurnSuccess": "{wordsCount, plural, one{لقد لعبت الكلمة {words} وحصلت على {points} نقطة.} other{You played the words {words} and scored {points} points.}}"
+}
+''',
+      );
+
+      final updatedDocument = TranslationService.applyManualTranslationsToDocument(
+        translatedDocument: translatedDocument,
+        languageCode: 'ar',
+        sourceDocument: sourceDocument,
+      );
+
+      expect(
+        updatedDocument.resources['playTurnSuccess']?.text,
+        sourceDocument.resources['playTurnSuccess']?.attributes?.xTranslations?['ar'],
+      );
     });
   });
 }
