@@ -62,7 +62,8 @@ class ArbResource {
   ///
   /// This getter analyzes the text and returns a list of tokens that represent
   /// the structure of the ICU message, including literal text and placeholders.
-  List<Token> get tokens => IcuParser().parse(text);
+  /// The resource ID is passed to the parser for informative console output.
+  List<Token> get tokens => IcuParser().parse(text, resourceId: id);
 
   /// Private constructor for creating ARB resources.
   ///

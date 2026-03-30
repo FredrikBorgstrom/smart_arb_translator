@@ -171,6 +171,7 @@ class IcuParser {
   ///
   /// Parameters:
   /// - [message]: The ICU message format string to parse
+  /// - [resourceId]: The ARB resource identifier for debug output
   ///
   /// Returns a list of [Token] objects representing the parsed segments.
   ///
@@ -179,21 +180,20 @@ class IcuParser {
   /// Example:
   /// ```dart
   /// final parser = IcuParser();
-  /// final tokens = parser.parse('Hello {name}!');
+  /// final tokens = parser.parse('Hello {name}!', resourceId: 'greeting');
   /// // Returns tokens for 'Hello ', '{name}', and '!'
   /// ```
   // TODO: Tokens can be nested deeper and we'll need to get those too using
   // fold or something
-  List<Token> parse(String message) {
+  List<Token> parse(String message, {required String resourceId}) {
     final parsed = (placeholderText.token() | justText.token() | pluralOrGenderOrSelectContents).parse(message);
 
     switch (parsed) {
-      case Failure(message: final message, position: final position):
-        print('Failed to parse: $message');
-        print('Error at position $position: $message');
+      case Failure(message: final errorMessage, position: final position):
+        print('Failed to parse [$resourceId] at position $position: $errorMessage');
         throw Exception('parsing failed');
       case Success(value: final parsedValue):
-        print('Parsed: $parsedValue');
+        print('Parsed: $resourceId');
         return parsedValue is List ? List<Token>.from(parsedValue) : [parsedValue as Token];
     }
   }
