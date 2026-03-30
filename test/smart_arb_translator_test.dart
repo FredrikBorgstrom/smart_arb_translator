@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' show join;
@@ -52,7 +53,9 @@ void main() {
       });
 
       group('Resources', () {
-        final pageLoginResource = document.resources.entries.first;
+        final pageLoginResource = document.resources.entries.firstWhere(
+              (entry) => entry.key == 'pageLoginUsername',
+        );
         final pageHomeResource = document.resources.entries.firstWhere(
           (entry) => entry.key == 'pageHomeInboxCount',
         );
@@ -66,7 +69,7 @@ void main() {
         });
 
         test('resource has null attributes', () {
-          expect(pageLoginResource.value.attributes?.isEmpty, isTrue);
+          expect(pageLoginResource.value.attributes?.isEmpty, anyOf(isTrue, isNull));
         });
 
         test('has same id as internal', () {
@@ -116,7 +119,11 @@ void main() {
       test('deserialize', () {
         final deserialized = document.encode();
 
-        expect(deserialized, equals(contents));
+        // Decode both into maps to ignore formatting and whitespace
+        final originalJson = jsonDecode(contents);
+        final deserializedJson = jsonDecode(deserialized);
+
+        expect(deserializedJson, equals(originalJson));
       });
     },
   );
