@@ -544,13 +544,25 @@ class TranslationService {
   }) async {
     final translated = <String>[];
     for (final text in translateList) {
-      final singleResult = await _translateWithOpenAi(
-        [text],
-        parameters,
-        client: client,
-        allowPerItemFallback: false,
-      );
-      translated.add(singleResult.first);
+      try {
+        final singleResult = await _translateWithOpenAi(
+          [text],
+          parameters,
+          client: client,
+          allowPerItemFallback: false,
+        );
+        translated.add(singleResult.first);
+      } on FormatException catch (error) {
+        if (_isOpenAiUntranslatedError(error)) {
+          stderr.writeln(
+            '⚠️  OpenAI persistently returned the source text for "$text"; '
+            'keeping the source value as the translation fallback.',
+          );
+          translated.add(text);
+        } else {
+          rethrow;
+        }
+      }
     }
     return translated;
   }
