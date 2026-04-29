@@ -15,6 +15,7 @@ A command-line utility for translating ARB (Application Resource Bundle) files u
 - **🆕 Translation Services**: Support for Google Translate v2 (Basic & NMT), Google v3 (LLM), and OpenAI models
 - **🆕 Translation Context**: Optional LLM context prompt (inline or file-based) for domain-specific tone/terminology
 - **🧹 Corrupted Cache Recovery**: Remove only known-bad cached translations from buggy package versions without deleting the whole cache
+- **⚡ Parallel Translation Requests (1.8.0)**: Optionally issue multiple per-language translation calls in parallel to dramatically reduce wall-clock time for projects targeting many locales. Defaults to `1` to preserve the original strictly-sequential behavior.
 - **Stats**: Gives you full statistics on the number of translations made
 
 
@@ -32,7 +33,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dev_dependencies:
-  smart_arb_translator: ^1.7.0
+  smart_arb_translator: ^1.8.1
 ```
 
 Then run:
@@ -283,7 +284,7 @@ dependencies:
     sdk: flutter
 
 dev_dependencies:
-  smart_arb_translator: ^1.2.0
+  smart_arb_translator: ^1.8.1
 
 # Smart ARB Translator Configuration
 smart_arb_translator:
@@ -321,6 +322,10 @@ smart_arb_translator:
   openai_model: gpt-4o-mini                  # Optional, used when translation_service=openai
   translation_context: Keep product terms in English
   translation_context_file: docs/translation_context.md
+
+  # Performance
+  parallel_translations: 4                 # Send up to N per-language translation requests in parallel
+                                           # (default: 1 = strictly sequential, the original behavior)
   
   # Automation
   auto_approve: false                      # Auto-approve pubspec.yaml modifications
@@ -434,6 +439,7 @@ All options can be configured in `pubspec.yaml` under the `smart_arb_translator`
 | `--openai_model` | OpenAI model to use when `translation_service=openai` | `gpt-4o-mini` | `openai_model` |
 | `--translation_context` | Optional context text for LLM translation style/tone | - | `translation_context` |
 | `--translation_context_file` | Optional file with context text for LLM translations | - | `translation_context_file` |
+| `--parallel_translations` | Maximum number of per-language translation requests sent in parallel for a single source ARB file. Higher values speed up large language lists at the cost of more concurrent requests against the translation provider. | `1` | `parallel_translations` |
 
 
 ### Configuration Precedence
@@ -601,6 +607,59 @@ smart_arb_translator \
 # ✅ Save your preference for future runs
 ```
 
+### ⚡ Parallel Translation Requests
+
+**Available since 1.8.0.**
+
+By default the translator processes target languages strictly sequentially: the request for the next language is only issued after the current language has finished. For projects that target many locales (e.g. 20+ languages) this is the dominant component of wall-clock time, especially with LLM-backed services like OpenAI where a single language can take several seconds.
+
+The `parallel_translations` option (CLI: `--parallel_translations`, pubspec key: `parallel_translations`) controls how many per-language translation requests are issued in parallel for a single source ARB file. Languages are processed in chunks of size N: each chunk runs concurrently via `Future.wait`, then the next chunk starts. Setting it to `1` (the default) reproduces the original strictly-sequential behavior.
+
+#### When to enable it
+
+- ✅ You translate to many languages (≥ 5–10) and the run is bottlenecked on per-language round-trips.
+- ✅ Your translation provider can comfortably handle a few concurrent requests (Google Translate v2/v3 and OpenAI all do).
+- ✅ You want shorter wall-clock time during local iteration or in CI.
+
+#### When to keep it at 1
+
+- ⚠️ You're hitting strict provider rate limits (e.g. low free-tier OpenAI accounts).
+- ⚠️ You need fully deterministic, ordered log output across language batches.
+- ⚠️ You depend on side effects between languages (the implementation is side-effect-free per language, but if you've forked the package and added stateful work, sequential execution may be safer).
+
+#### Recommended values
+
+| Setting | Description |
+|---------|-------------|
+| `1` (default) | Original strictly-sequential behavior. |
+| `2`–`4` | Sweet spot for most projects. Significant speedup with negligible rate-limit risk. |
+| `5`–`8` | Useful for very large language lists. Verify your provider's rate limits before going this high. |
+| `>8` | Not recommended; gains taper off and you risk being throttled. |
+
+#### Example: `pubspec.yaml`
+
+```yaml
+smart_arb_translator:
+  source_dir: lib/l10n_source
+  language_codes: [es, fr, de, it, pt, ja, ko, zh, ar, ru, sv, fi, da, nb, nl, pl, cs, hu]
+  translation_service: openai
+  api_key: secrets/openai_key.txt
+  parallel_translations: 4
+```
+
+#### Example: CLI
+
+```bash
+smart_arb_translator --parallel_translations 4
+```
+
+#### Implementation notes
+
+- Cross-language work is fully isolated: each language gets its own `ArbDocument` produced via `copyWith`, so concurrent runs do not share mutable state.
+- The existing per-language behavior (smart change detection, action-list batching, OpenAI per-item fallback) is unchanged. Parallelism is layered above it.
+- Languages within a chunk run concurrently; chunks themselves run sequentially. This caps the maximum number of in-flight requests at exactly `parallel_translations`, regardless of how many languages you configure.
+- Total time scales roughly with `ceil(num_languages / parallel_translations)`. For 33 languages, `parallel_translations: 4` reduces 33 sequential round-trips to 9 sequential chunks of up to 4 parallel calls each.
+
 ### Manual Translation Overrides
 
 You can provide manual translations that will override Google Translate results:
@@ -650,7 +709,7 @@ All files will be processed recursively and organized in the output structure.
 ```yaml
 # pubspec.yaml
 dev_dependencies:
-  smart_arb_translator: ^1.2.0
+  smart_arb_translator: ^1.8.1
 
 flutter:
   generate: true
