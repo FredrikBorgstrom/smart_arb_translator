@@ -93,6 +93,14 @@ class PubspecConfig {
   /// Optional file path that contains translation context text.
   final String? translationContextFile;
 
+  /// Optional maximum number of per-language translation calls executed concurrently
+  /// for a single source ARB file.
+  ///
+  /// `null` falls back to the default of `1`, preserving the original sequential
+  /// behavior. Increase this to send multiple language requests in parallel and
+  /// reduce wall-clock time for large language lists.
+  final int? parallelTranslations;
+
   /// Creates a new pubspec configuration instance.
   ///
   /// All parameters are optional and correspond to the configuration
@@ -120,6 +128,7 @@ class PubspecConfig {
     this.openaiModel,
     this.translationContext,
     this.translationContextFile,
+    this.parallelTranslations,
   });
 
   /// Loads configuration from a pubspec.yaml file.
@@ -183,6 +192,7 @@ class PubspecConfig {
         openaiModel: config['openai_model'] as String?,
         translationContext: config['translation_context'] as String?,
         translationContextFile: config['translation_context_file'] as String?,
+        parallelTranslations: _parsePositiveInt(config['parallel_translations']),
       );
     } catch (e) {
       // If there's any error reading the config, return null
@@ -220,6 +230,18 @@ class PubspecConfig {
     return null;
   }
 
+  /// Parses an optional positive integer from a YAML scalar value.
+  ///
+  /// Accepts native ints or numeric strings, returning `null` for any other
+  /// value or when the parsed result is less than 1.
+  static int? _parsePositiveInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value < 1 ? null : value;
+    final parsed = int.tryParse(value.toString().trim());
+    if (parsed == null || parsed < 1) return null;
+    return parsed;
+  }
+
   /// Checks if any configuration values are present.
   ///
   /// This getter returns true if at least one configuration option
@@ -249,7 +271,8 @@ class PubspecConfig {
         quotaProjectId != null ||
         openaiModel != null ||
         translationContext != null ||
-        translationContextFile != null;
+        translationContextFile != null ||
+        parallelTranslations != null;
   }
 
   /// Returns a string representation of this configuration.
@@ -280,7 +303,8 @@ class PubspecConfig {
         'quotaProjectId: $quotaProjectId, '
         'openaiModel: $openaiModel, '
         'translationContext: $translationContext, '
-        'translationContextFile: $translationContextFile'
+        'translationContextFile: $translationContextFile, '
+        'parallelTranslations: $parallelTranslations'
         ')';
   }
 }

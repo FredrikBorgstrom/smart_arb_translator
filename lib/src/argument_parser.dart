@@ -45,6 +45,13 @@ class ArbTranslatorArgumentParser {
   static const _openaiModel = 'openai_model';
   static const _translationContext = 'translation_context';
   static const _translationContextFile = 'translation_context_file';
+  static const _parallelTranslations = 'parallel_translations';
+
+  /// Default value for [_parallelTranslations] when the option is not provided.
+  ///
+  /// Set to `1` so callers preserve the original sequential behavior unless they
+  /// explicitly opt into concurrent per-language translation requests.
+  static const int defaultParallelTranslations = 1;
 
   /// Initializes and configures the argument parser.
   ///
@@ -169,9 +176,31 @@ class ArbTranslatorArgumentParser {
       ..addOption(
         _translationContextFile,
         help: 'path to a file containing translation context text (appended to translation_context)',
+      )
+      ..addOption(
+        _parallelTranslations,
+        help: 'maximum number of concurrent per-language translation requests sent in parallel '
+            'within a single source ARB file. Higher values speed up large language lists at the '
+            'cost of more concurrent requests against the translation provider. Defaults to 1 '
+            '(sequential, original behavior).',
+        defaultsTo: defaultParallelTranslations.toString(),
       );
 
     return parser;
+  }
+
+  /// Parses the `parallel_translations` option, applying validation and the default.
+  ///
+  /// Accepts numeric strings or already-numeric values, clamps to a minimum of 1,
+  /// and falls back to [defaultParallelTranslations] when missing or invalid.
+  static int parseParallelTranslations(dynamic raw) {
+    if (raw == null) return defaultParallelTranslations;
+    if (raw is int) return raw < 1 ? defaultParallelTranslations : raw;
+    final trimmed = raw.toString().trim();
+    if (trimmed.isEmpty) return defaultParallelTranslations;
+    final parsed = int.tryParse(trimmed);
+    if (parsed == null || parsed < 1) return defaultParallelTranslations;
+    return parsed;
   }
 
   /// Parses command-line arguments and merges them with pubspec.yaml configuration.
@@ -360,6 +389,9 @@ class ArbTranslatorArgumentParser {
     if (pubspecConfig.translationContextFile != null) {
       mergedOptions[_translationContextFile] = pubspecConfig.translationContextFile;
     }
+    if (pubspecConfig.parallelTranslations != null) {
+      mergedOptions[_parallelTranslations] = pubspecConfig.parallelTranslations;
+    }
 
     // Override with CLI arguments (CLI takes precedence)
     for (final option in cliResult.options) {
@@ -379,6 +411,7 @@ class ArbTranslatorArgumentParser {
     mergedOptions[_translationService] ??= 'google_basic';
     mergedOptions[_authMode] ??= 'api_key';
     mergedOptions[_openaiModel] ??= 'gpt-4o-mini';
+    mergedOptions[_parallelTranslations] ??= defaultParallelTranslations.toString();
 
     return _MergedArgResults(mergedOptions, cliResult);
   }
@@ -715,7 +748,8 @@ class ArbTranslatorArgumentParser {
       'quota_project_id:',
       'openai_model:',
       'translation_context:',
-      'translation_context_file:'
+      'translation_context_file:',
+      'parallel_translations:'
     ];
     return configKeys.any((key) => trimmedLine.startsWith(key));
   }
@@ -802,6 +836,7 @@ class ArbTranslatorArgumentParser {
   static String get openaiModel => _openaiModel;
   static String get translationContext => _translationContext;
   static String get translationContextFile => _translationContextFile;
+  static String get parallelTranslations => _parallelTranslations;
 }
 
 /// Custom ArgResults implementation that merges CLI args with pubspec.yaml config

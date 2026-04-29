@@ -110,8 +110,10 @@ class DirectoryProcessor {
     String? quotaProjectId,
     String openaiModel = 'gpt-4o-mini',
     String? translationContext,
+    int parallelTranslations = 1,
   }) async {
     dartClassName ??= (l10nMethod == 'gen-l10n') ? 'AppLocalizations' : 'S';
+    final effectiveParallelism = parallelTranslations < 1 ? 1 : parallelTranslations;
 
     Directory sourceDir = Directory(sourcePath);
     if (!sourceDir.existsSync()) {
@@ -168,43 +170,31 @@ class DirectoryProcessor {
 
     print('Found ${arbFiles.length} ARB files to translate');
     print('Output directory: $effectiveOutputPath');
+    if (effectiveParallelism > 1) {
+      print('Per-language parallelism: $effectiveParallelism concurrent translation requests');
+    }
 
-    // Initialize statistics tracking
     final statistics = TranslationStatistics();
 
     for (final arbFile in arbFiles) {
-      final fileName = path.basename(arbFile.path);
-
-      final fileExt = path.extension(fileName);
-
-      for (final languageCode in languageCodes) {
-        final langOutputDir = path.join(effectiveOutputPath, languageCode);
-        final langOutputFileName = outputFileName.isEmpty
-            ? '$languageCode$fileExt'
-            : outputFileName.endsWith('_')
-                ? '$outputFileName$languageCode$fileExt'
-                : '${outputFileName}_$languageCode$fileExt';
-
-        final relativePath = path.relative(arbFile.path, from: workingSourcePath);
-        final previousDocument = previousSourceFiles[relativePath];
-
-        await SingleFileProcessor.processSingleFileWithChanges(
-          arbFile.path,
-          [languageCode],
-          apiKey,
-          langOutputDir,
-          langOutputFileName,
-          previousDocument,
-          statistics,
-          translationService: translationService,
-          projectId: projectId,
-          authMode: authMode,
-          credentialsFile: credentialsFile,
-          quotaProjectId: quotaProjectId,
-          openaiModel: openaiModel,
-          translationContext: translationContext,
-        );
-      }
+      await _processArbFileForAllLanguages(
+        arbFile: arbFile,
+        languageCodes: languageCodes,
+        apiKey: apiKey,
+        outputFileName: outputFileName,
+        effectiveOutputPath: effectiveOutputPath,
+        workingSourcePath: workingSourcePath,
+        previousSourceFiles: previousSourceFiles,
+        statistics: statistics,
+        translationService: translationService,
+        projectId: projectId,
+        authMode: authMode,
+        credentialsFile: credentialsFile,
+        quotaProjectId: quotaProjectId,
+        openaiModel: openaiModel,
+        translationContext: translationContext,
+        parallelTranslations: effectiveParallelism,
+      );
     }
 
     // Merge all language files to l10n directory
@@ -324,6 +314,94 @@ class DirectoryProcessor {
       _setBrightRed();
       stderr.write('Error merging files: $e');
       Console.resetTextColor();
+    }
+  }
+
+  /// Processes a single ARB file for every target language, batching the
+  /// per-language translation calls into chunks of [parallelTranslations].
+  ///
+  /// Languages within a chunk run concurrently via [Future.wait]. Chunks run
+  /// sequentially so we cap the maximum number of in-flight translation
+  /// requests against the upstream provider. Setting [parallelTranslations] to
+  /// 1 reproduces the original strictly sequential behavior.
+  static Future<void> _processArbFileForAllLanguages({
+    required File arbFile,
+    required List<String> languageCodes,
+    required String apiKey,
+    required String outputFileName,
+    required String effectiveOutputPath,
+    required String workingSourcePath,
+    required Map<String, ArbDocument> previousSourceFiles,
+    required TranslationStatistics statistics,
+    required String translationService,
+    required String? projectId,
+    required String authMode,
+    required String? credentialsFile,
+    required String? quotaProjectId,
+    required String openaiModel,
+    required String? translationContext,
+    required int parallelTranslations,
+  }) async {
+    final fileExt = path.extension(path.basename(arbFile.path));
+    final relativePath = path.relative(arbFile.path, from: workingSourcePath);
+    final previousDocument = previousSourceFiles[relativePath];
+
+    Future<void> runForLanguage(String languageCode) async {
+      final langOutputDir = path.join(effectiveOutputPath, languageCode);
+      final langOutputFileName = _resolveLanguageOutputFileName(
+        outputFileName: outputFileName,
+        languageCode: languageCode,
+        fileExt: fileExt,
+      );
+
+      await SingleFileProcessor.processSingleFileWithChanges(
+        arbFile.path,
+        [languageCode],
+        apiKey,
+        langOutputDir,
+        langOutputFileName,
+        previousDocument,
+        statistics,
+        translationService: translationService,
+        projectId: projectId,
+        authMode: authMode,
+        credentialsFile: credentialsFile,
+        quotaProjectId: quotaProjectId,
+        openaiModel: openaiModel,
+        translationContext: translationContext,
+      );
+    }
+
+    for (final chunk in _chunked(languageCodes, parallelTranslations)) {
+      await Future.wait(chunk.map(runForLanguage));
+    }
+  }
+
+  /// Builds the per-language output file name following the legacy convention.
+  static String _resolveLanguageOutputFileName({
+    required String outputFileName,
+    required String languageCode,
+    required String fileExt,
+  }) {
+    if (outputFileName.isEmpty) {
+      return '$languageCode$fileExt';
+    }
+    if (outputFileName.endsWith('_')) {
+      return '$outputFileName$languageCode$fileExt';
+    }
+    return '${outputFileName}_$languageCode$fileExt';
+  }
+
+  /// Splits [items] into successive chunks of size [size].
+  ///
+  /// Returns lazily so callers can `await` each chunk before the next is built.
+  static Iterable<List<T>> _chunked<T>(List<T> items, int size) sync* {
+    if (size <= 0) {
+      throw ArgumentError.value(size, 'size', 'chunk size must be >= 1');
+    }
+    for (var start = 0; start < items.length; start += size) {
+      final end = (start + size < items.length) ? start + size : items.length;
+      yield items.sublist(start, end);
     }
   }
 

@@ -103,6 +103,7 @@ class SingleFileProcessor {
     String? quotaProjectId,
     String openaiModel = 'gpt-4o-mini',
     String? translationContext,
+    int parallelTranslations = 1,
   }) async {
     dartClassName ??= (l10nMethod == 'gen-l10n') ? 'AppLocalizations' : 'S';
     final arbFile = FileOperations.createFileRef(sourceArb);
@@ -129,24 +130,22 @@ class SingleFileProcessor {
     await arbFile.copy(cachedSourcePath);
     print('Source file copied to: $cachedSourcePath');
 
-    // Initialize statistics tracking
     final statistics = TranslationStatistics();
 
-    // Get source file info for filename construction
     final sourceFileName = path.basename(arbFile.path);
     final sourceFileNameWithoutExt = path.basenameWithoutExtension(sourceFileName);
     final sourceFileExt = path.extension(sourceFileName);
 
-    for (final languageCode in languageCodes) {
-      // Construct proper output filename with language code and extension
-      // Construct proper output filename with language code and extension
-      final finalOutputFileName = outputFileName.isEmpty
-          ? '$languageCode.arb'
-          : outputFileName.endsWith('.arb')
-              ? '${outputFileName.substring(0, outputFileName.length - 4)}_$languageCode.arb'
-              : '$outputFileName$languageCode.arb';
+    final effectiveParallelism = parallelTranslations < 1 ? 1 : parallelTranslations;
+    if (effectiveParallelism > 1) {
+      print('Per-language parallelism: $effectiveParallelism concurrent translation requests');
+    }
 
-      // Use the smart change detection processing
+    Future<void> runForLanguage(String languageCode) async {
+      final finalOutputFileName = _resolveSingleFileLanguageOutputName(
+        outputFileName: outputFileName,
+        languageCode: languageCode,
+      );
       await processSingleFileWithChanges(
         cachedSourcePath,
         [languageCode],
@@ -165,7 +164,10 @@ class SingleFileProcessor {
       );
     }
 
-    // Print translation statistics
+    for (final chunk in _chunked(languageCodes, effectiveParallelism)) {
+      await Future.wait(chunk.map(runForLanguage));
+    }
+
     statistics.printSummary();
 
     // Generate Dart code if requested
@@ -273,6 +275,7 @@ class SingleFileProcessor {
     String? quotaProjectId,
     String openaiModel = 'gpt-4o-mini',
     String? translationContext,
+    int parallelTranslations = 1,
   }) async {
     final sourceArbFile = File(sourceArbPath);
     final sourceContent = sourceArbFile.readAsStringSync();
@@ -353,75 +356,143 @@ class SingleFileProcessor {
     );
 
     final actionLists = ArbProcessor.createActionLists(tempDocument);
+    final effectiveParallelism = parallelTranslations < 1 ? 1 : parallelTranslations;
 
-    for (final languageCode in languageCodes) {
+    Future<void> translateLanguage(String languageCode) async {
       print('• Processing changes for $languageCode');
-
-      // Start with existing translation or create new one
-      var newArbDocument = existingTranslation?.copyWith(locale: languageCode) ??
-          sourceDocument.copyWith(locale: languageCode, resources: {});
-
-      if (actionLists.isNotEmpty) {
-        final futuresList = actionLists.map((list) {
-          return TranslationService.translateTexts(
-            translateList: list.map((action) => action.text).toList(),
-            parameters: <String, dynamic>{
-              'target': languageCode,
-              'key': apiKey,
-              'openai_model': openaiModel,
-              'translation_context': translationContext,
-            },
-            translationService: translationService,
-            projectId: projectId,
-            authMode: authMode,
-            credentialsFile: credentialsFile,
-            quotaProjectId: quotaProjectId,
-          );
-        }).toList();
-
-        final translateResults = await Future.wait(futuresList);
-
-        // Apply translations to the document
-        for (var i = translateResults.length - 1; i >= 0; i--) {
-          final translateList = translateResults[i];
-          final actionList = actionLists[i];
-
-          for (var j = translateList.length - 1; j >= 0; j--) {
-            final action = actionList[j];
-            final translation = translateList[j];
-            final sanitizedTranslation = TranslationService.sanitizeTranslation(translation);
-
-            // Update or add the resource
-            final originalResource = keysToTranslate[action.resourceId]!;
-            final translatedResource = action.updateFunction(
-              sanitizedTranslation,
-              originalResource.text,
-            );
-
-            newArbDocument = newArbDocument.copyWith(
-              resources: newArbDocument.resources..[action.resourceId] = translatedResource,
-            );
-          }
-        }
-      }
-
-      newArbDocument = TranslationService.applyManualTranslationsToDocument(
-        translatedDocument: newArbDocument,
+      final translatedDocument = await _translateLanguageForFile(
         languageCode: languageCode,
-        sourceDocument: tempDocument,
+        actionLists: actionLists,
+        keysToTranslate: keysToTranslate,
+        existingTranslation: existingTranslation,
+        sourceDocument: sourceDocument,
+        tempDocument: tempDocument,
+        apiKey: apiKey,
+        translationService: translationService,
+        projectId: projectId,
+        authMode: authMode,
+        credentialsFile: credentialsFile,
+        quotaProjectId: quotaProjectId,
+        openaiModel: openaiModel,
+        translationContext: translationContext,
       );
+      final file = await File(outputFilePath).create(recursive: true);
+      await file.writeAsString(translatedDocument.encode());
+    }
 
-      // Ensure all source keys are present (even if not translated)
-      for (final entry in sourceDocument.resources.entries) {
-        if (!newArbDocument.resources.containsKey(entry.key)) {
+    for (final chunk in _chunked(languageCodes, effectiveParallelism)) {
+      await Future.wait(chunk.map(translateLanguage));
+    }
+  }
+
+  /// Builds the translated [ArbDocument] for a single [languageCode] by issuing
+  /// the per-action-list translation requests and merging results back into the
+  /// existing per-language document (or a fresh one when none exists).
+  ///
+  /// The function is intentionally side-effect-free aside from the underlying
+  /// translation HTTP calls, which means multiple languages can run it in
+  /// parallel without sharing mutable state.
+  static Future<ArbDocument> _translateLanguageForFile({
+    required String languageCode,
+    required List<List<Action>> actionLists,
+    required Map<String, ArbResource> keysToTranslate,
+    required ArbDocument? existingTranslation,
+    required ArbDocument sourceDocument,
+    required ArbDocument tempDocument,
+    required String apiKey,
+    required String translationService,
+    required String? projectId,
+    required String authMode,
+    required String? credentialsFile,
+    required String? quotaProjectId,
+    required String openaiModel,
+    required String? translationContext,
+  }) async {
+    var newArbDocument = existingTranslation?.copyWith(locale: languageCode) ??
+        sourceDocument.copyWith(locale: languageCode, resources: {});
+
+    if (actionLists.isNotEmpty) {
+      final futuresList = actionLists.map((list) {
+        return TranslationService.translateTexts(
+          translateList: list.map((action) => action.text).toList(),
+          parameters: <String, dynamic>{
+            'target': languageCode,
+            'key': apiKey,
+            'openai_model': openaiModel,
+            'translation_context': translationContext,
+          },
+          translationService: translationService,
+          projectId: projectId,
+          authMode: authMode,
+          credentialsFile: credentialsFile,
+          quotaProjectId: quotaProjectId,
+        );
+      }).toList();
+
+      final translateResults = await Future.wait(futuresList);
+
+      for (var i = translateResults.length - 1; i >= 0; i--) {
+        final translateList = translateResults[i];
+        final actionList = actionLists[i];
+
+        for (var j = translateList.length - 1; j >= 0; j--) {
+          final action = actionList[j];
+          final translation = translateList[j];
+          final sanitizedTranslation = TranslationService.sanitizeTranslation(translation);
+
+          final originalResource = keysToTranslate[action.resourceId]!;
+          final translatedResource = action.updateFunction(
+            sanitizedTranslation,
+            originalResource.text,
+          );
+
           newArbDocument = newArbDocument.copyWith(
-            resources: newArbDocument.resources..[entry.key] = entry.value.copyWith(),
+            resources: newArbDocument.resources..[action.resourceId] = translatedResource,
           );
         }
       }
+    }
 
-      final file = await File(outputFilePath).create(recursive: true);
-      await file.writeAsString(newArbDocument.encode());
+    newArbDocument = TranslationService.applyManualTranslationsToDocument(
+      translatedDocument: newArbDocument,
+      languageCode: languageCode,
+      sourceDocument: tempDocument,
+    );
+
+    for (final entry in sourceDocument.resources.entries) {
+      if (!newArbDocument.resources.containsKey(entry.key)) {
+        newArbDocument = newArbDocument.copyWith(
+          resources: newArbDocument.resources..[entry.key] = entry.value.copyWith(),
+        );
+      }
+    }
+
+    return newArbDocument;
+  }
+
+  /// Constructs the per-language output filename used by [processSingleFile].
+  static String _resolveSingleFileLanguageOutputName({
+    required String outputFileName,
+    required String languageCode,
+  }) {
+    if (outputFileName.isEmpty) {
+      return '$languageCode.arb';
+    }
+    if (outputFileName.endsWith('.arb')) {
+      final stem = outputFileName.substring(0, outputFileName.length - 4);
+      return '${stem}_$languageCode.arb';
+    }
+    return '$outputFileName$languageCode.arb';
+  }
+
+  /// Splits [items] into successive chunks of size [size].
+  static Iterable<List<T>> _chunked<T>(List<T> items, int size) sync* {
+    if (size <= 0) {
+      throw ArgumentError.value(size, 'size', 'chunk size must be >= 1');
+    }
+    for (var start = 0; start < items.length; start += size) {
+      final end = (start + size < items.length) ? start + size : items.length;
+      yield items.sublist(start, end);
     }
   }
 }

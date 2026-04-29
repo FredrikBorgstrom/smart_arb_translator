@@ -117,6 +117,9 @@ void main(List<String> args) async {
     result[ArbTranslatorArgumentParser.translationContext] as String?,
     result[ArbTranslatorArgumentParser.translationContextFile] as String?,
   );
+  final parallelTranslations = ArbTranslatorArgumentParser.parseParallelTranslations(
+    result[ArbTranslatorArgumentParser.parallelTranslations],
+  );
 
   if (apiKey != null && File(apiKey).existsSync()) {
     apiKey = File(apiKey).readAsStringSync().trim();
@@ -151,6 +154,7 @@ void main(List<String> args) async {
       quotaProjectId: quotaProjectId,
       openaiModel: openaiModel,
       translationContext: translationContext,
+      parallelTranslations: parallelTranslations,
     );
   } else if (sourceArb != null) {
     await SingleFileProcessor.processSingleFile(
@@ -173,6 +177,7 @@ void main(List<String> args) async {
       quotaProjectId: quotaProjectId,
       openaiModel: openaiModel,
       translationContext: translationContext,
+      parallelTranslations: parallelTranslations,
     );
 
     // Create l10n directory and merge files for single file processing

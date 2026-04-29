@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-04-29
+
+### Added
+- Add `--parallel_translations` CLI option (also configurable via `parallel_translations:` in `pubspec.yaml`) that controls how many per-language translation requests are issued concurrently for a single source ARB file. Defaults to `1`, preserving the original strictly-sequential behavior. Setting it to e.g. `4` issues four languages in parallel via `Future.wait`, then continues with the next chunk, which can dramatically reduce wall-clock time for projects targeting many locales.
+- The new option is plumbed through `bin/smart_arb_translator.dart`, `DirectoryProcessor.processDirectory`, `SingleFileProcessor.processSingleFile`, and `SingleFileProcessor.processSingleFileWithChanges`. Internal helpers (`_chunked`, `_translateLanguageForFile`, `_resolveLanguageOutputFileName`) keep the parallel paths side-effect-free per language so concurrent runs do not share mutable state.
+
+### Usage
+```bash
+smart_arb_translator --parallel_translations 4
+```
+```yaml
+smart_arb_translator:
+  parallel_translations: 4
+```
+
 ## [1.7.1] - 2026-04-27
 
 ### Fixed
