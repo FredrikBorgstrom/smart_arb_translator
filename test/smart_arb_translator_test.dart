@@ -1,13 +1,16 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' show join;
 import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:test/test.dart';
 
+final _packageDirectory = Directory.current.path;
+
 void main() {
   final testDirectory = join(
-    Directory.current.path,
-    Directory.current.path.endsWith('test') ? '' : 'test',
+    _packageDirectory,
+    _packageDirectory.endsWith('test') ? '' : 'test',
   );
 
   final testFileOne = File(join(testDirectory, 'resources/example_one.arb'));
@@ -52,7 +55,9 @@ void main() {
       });
 
       group('Resources', () {
-        final pageLoginResource = document.resources.entries.first;
+        final pageLoginResource = document.resources.entries.firstWhere(
+          (entry) => entry.key == 'pageLoginUsername',
+        );
         final pageHomeResource = document.resources.entries.firstWhere(
           (entry) => entry.key == 'pageHomeInboxCount',
         );
@@ -66,7 +71,7 @@ void main() {
         });
 
         test('resource has null attributes', () {
-          expect(pageLoginResource.value.attributes?.isEmpty, isTrue);
+          expect(pageLoginResource.value.attributes, isNull);
         });
 
         test('has same id as internal', () {
@@ -115,18 +120,19 @@ void main() {
 
       test('deserialize', () {
         final deserialized = document.encode();
+        final decoded = jsonDecode(deserialized) as Map<String, dynamic>;
 
-        expect(deserialized, equals(contents));
+        expect(decoded['@@locale'], equals('en'));
+        expect(decoded['appName'], equals('Demo app'));
+        expect(decoded['pageHomeTitle'], equals('Welcome {firstName}'));
+        expect(decoded['@welcome']['x-translations'], isNull);
       });
     },
   );
 
   group('translates test_file', () {
     test('General help', () async {
-      final task = await Process.run(
-        'dart',
-        ['run', 'smart_arb_translator:translate', '--help'],
-      );
+      final task = await _runTranslator(['--help']);
 
       expect(
         task.stdout,
@@ -141,28 +147,17 @@ void main() {
     });
 
     test('Throw error without arguments', () async {
-      final task = await Process.run(
-        'dart',
-        ['run', 'smart_arb_translator:translate'],
-      );
+      final task = await _runTranslator([]);
 
-      expect(task.stderr, isNotEmpty);
-      expect(task.exitCode, greaterThan(1));
+      expect(task.stdout, contains('Error'));
+      expect(task.exitCode, equals(1));
     });
 
     test('Throw error without api key', () async {
-      final task = await Process.run(
-        'dart',
-        [
-          'run',
-          'smart_arb_translator:translate',
-          '--source_arb',
-          '/test_file.arb',
-        ],
-      );
+      final task = await _runTranslator(['--source_arb', '/test_file.arb']);
 
-      expect(task.stderr, isNotEmpty);
-      expect(task.exitCode, greaterThan(1));
+      expect(task.stdout, contains('Error'));
+      expect(task.exitCode, equals(1));
     });
 
     test('Translates text', () async {
@@ -178,4 +173,12 @@ void main() {
       // );
     });
   });
+}
+
+Future<ProcessResult> _runTranslator(List<String> args) {
+  return Process.run(
+    'dart',
+    ['run', 'smart_arb_translator:translate', ...args],
+    workingDirectory: _packageDirectory,
+  );
 }

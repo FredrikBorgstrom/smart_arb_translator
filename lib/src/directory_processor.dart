@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:arb_merge/arb_merge.dart';
@@ -138,7 +139,8 @@ class DirectoryProcessor {
     // If we're doing change detection, read the existing copied files first
     if (copiedSourceDir.existsSync()) {
       print('Reading existing copied files for change detection...');
-      final existingArbFiles = await translator_file_ops.FileOperations.findArbFiles(copiedSourceDir);
+      final existingArbFiles = (await translator_file_ops.FileOperations.findArbFiles(copiedSourceDir))
+          .where((file) => !_isGeneratedLocaleMergeFile(file.path));
       for (final arbFile in existingArbFiles) {
         try {
           final content = arbFile.readAsStringSync();
@@ -161,7 +163,9 @@ class DirectoryProcessor {
     final workingSourcePath = copiedSourceDir.path;
 
     // Find all ARB files recursively
-    final arbFiles = await translator_file_ops.FileOperations.findArbFiles(sourceDir);
+    final arbFiles = (await translator_file_ops.FileOperations.findArbFiles(sourceDir))
+        .where((file) => !_isGeneratedLocaleMergeFile(file.path))
+        .toList(growable: false);
     if (arbFiles.isEmpty) {
       _setBrightRed();
       stderr.write('No ARB files found in $sourcePath');
@@ -176,10 +180,16 @@ class DirectoryProcessor {
 
     final statistics = TranslationStatistics();
 
+    final translationLanguageCodes =
+        languageCodes.where((languageCode) => !_isSameLocale(languageCode, dartMainLocale)).toList(growable: false);
+    if (translationLanguageCodes.length != languageCodes.length) {
+      print('Protecting source locale "$dartMainLocale": skipping translation for matching language code(s).');
+    }
+
     for (final arbFile in arbFiles) {
       await _processArbFileForAllLanguages(
         arbFile: arbFile,
-        languageCodes: languageCodes,
+        languageCodes: translationLanguageCodes,
         apiKey: apiKey,
         outputFileName: outputFileName,
         effectiveOutputPath: effectiveOutputPath,
@@ -198,7 +208,13 @@ class DirectoryProcessor {
     }
 
     // Merge all language files to l10n directory
-    await mergeToL10nDirectory(effectiveOutputPath, effectiveL10nPath, languageCodes);
+    await mergeToL10nDirectory(
+      effectiveOutputPath,
+      effectiveL10nPath,
+      languageCodes,
+      sourceLocaleDirectory: copiedSourceDir.path,
+      mainLocale: dartMainLocale,
+    );
 
     // Generate Dart code if requested
     if (generateDart) {
@@ -267,54 +283,118 @@ class DirectoryProcessor {
   static Future<void> mergeToL10nDirectory(
     String outputPath,
     String l10nPath,
-    List<String> languageCodes,
-  ) async {
+    List<String> languageCodes, {
+    String? sourceLocaleDirectory,
+    String mainLocale = 'en',
+  }) async {
     print('Merging translation files to l10n directory...');
     print('L10n directory: $l10nPath');
 
     // Create source folders list for each language
     final sourceFolders = <String>[];
+    final sourceFolderSet = <String>{};
 
-    // Add the main output directory (contains source files and copied files)
-    if (Directory(outputPath).existsSync()) {
-      sourceFolders.add(outputPath);
+    void addSourceFolder(String folderPath) {
+      final normalized = path.normalize(folderPath);
+      if (Directory(normalized).existsSync() && sourceFolderSet.add(normalized)) {
+        sourceFolders.add(normalized);
+      }
+    }
+
+    // In directory mode, the source locale is rebuilt explicitly from source
+    // chunks after the merge. Do not feed the source-locale cache directory to
+    // arb_merge because it can contain stale generated intl_<locale>.arb files.
+    if (sourceLocaleDirectory == null) {
+      // Backwards-compatible fallback for older single-file workflows.
+      addSourceFolder(outputPath);
     }
 
     // Add language-specific directories
     for (final languageCode in languageCodes) {
-      final langDir = path.join(outputPath, languageCode);
-      if (Directory(langDir).existsSync()) {
-        sourceFolders.add(langDir);
+      if (sourceLocaleDirectory != null && _isSameLocale(languageCode, mainLocale)) {
+        continue;
       }
+      final langDir = path.join(outputPath, languageCode);
+      addSourceFolder(langDir);
     }
 
-    if (sourceFolders.isEmpty) {
+    if (sourceFolders.isEmpty && sourceLocaleDirectory == null) {
       print('No directories found to merge');
       return;
     }
 
-    print('Merging from directories: ${sourceFolders.join(', ')}');
-
-    // Create ArbMerge instance
-    final arbMerge = ArbMerge.create(
-      sourceFolders: sourceFolders,
-      destinationFolder: l10nPath,
-      filePattern: 'intl_{lang}.arb',
-      sortKeys: true,
-      verbose: true,
-    );
-
     try {
-      final result = await arbMerge.run();
-      print('✓ Successfully merged ${result.locales.length} language files:');
-      for (final locale in result.locales) {
-        print('  - intl_$locale.arb');
+      if (sourceFolders.isNotEmpty) {
+        print('Merging from directories: ${sourceFolders.join(', ')}');
+
+        // Create ArbMerge instance
+        final arbMerge = ArbMerge.create(
+          sourceFolders: sourceFolders,
+          destinationFolder: l10nPath,
+          filePattern: 'intl_{lang}.arb',
+          sortKeys: true,
+          verbose: true,
+        );
+
+        final result = await arbMerge.run();
+        print('✓ Successfully merged ${result.locales.length} language files:');
+        for (final locale in result.locales) {
+          print('  - intl_$locale.arb');
+        }
+      } else {
+        print('No translated locale directories found to merge');
+      }
+      if (sourceLocaleDirectory != null) {
+        await _writeMainLocaleFromSourceDirectory(
+          sourceLocaleDirectory: sourceLocaleDirectory,
+          l10nPath: l10nPath,
+          mainLocale: mainLocale,
+        );
       }
     } catch (e) {
       _setBrightRed();
       stderr.write('Error merging files: $e');
       Console.resetTextColor();
     }
+  }
+
+  static Future<void> _writeMainLocaleFromSourceDirectory({
+    required String sourceLocaleDirectory,
+    required String l10nPath,
+    required String mainLocale,
+  }) async {
+    final sourceDir = Directory(sourceLocaleDirectory);
+    if (!sourceDir.existsSync()) {
+      return;
+    }
+
+    final merged = <String, dynamic>{};
+    final sourceFiles = await translator_file_ops.FileOperations.findArbFiles(sourceDir);
+    sourceFiles.sort((a, b) => a.path.compareTo(b.path));
+
+    for (final sourceFile in sourceFiles) {
+      final fileName = path.basename(sourceFile.path);
+      if (_isGeneratedLocaleMergeFile(fileName)) {
+        continue;
+      }
+      final raw = jsonDecode(sourceFile.readAsStringSync()) as Map<String, dynamic>;
+      for (final entry in raw.entries) {
+        merged[entry.key] = entry.value;
+      }
+    }
+
+    if (merged.isEmpty) {
+      return;
+    }
+
+    final sorted = Map<String, dynamic>.fromEntries(
+      merged.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+    );
+    final destination = File(path.join(l10nPath, 'intl_$mainLocale.arb'));
+    await destination.create(recursive: true);
+    const encoder = JsonEncoder.withIndent('  ');
+    await destination.writeAsString('${encoder.convert(sorted)}\n');
+    print('✓ Rebuilt protected source locale file: ${destination.path}');
   }
 
   /// Processes a single ARB file for every target language, batching the
@@ -407,5 +487,14 @@ class DirectoryProcessor {
 
   static void _setBrightRed() {
     Console.setTextColor(1, bright: true);
+  }
+
+  static bool _isSameLocale(String left, String right) {
+    return left.trim().replaceAll('-', '_').toLowerCase() == right.trim().replaceAll('-', '_').toLowerCase();
+  }
+
+  static bool _isGeneratedLocaleMergeFile(String filePath) {
+    final fileName = path.basename(filePath);
+    return RegExp(r'^intl_[A-Za-z0-9_-]+\.arb$').hasMatch(fileName);
   }
 }

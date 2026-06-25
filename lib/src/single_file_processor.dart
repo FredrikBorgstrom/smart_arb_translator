@@ -141,6 +141,12 @@ class SingleFileProcessor {
       print('Per-language parallelism: $effectiveParallelism concurrent translation requests');
     }
 
+    final translationLanguageCodes =
+        languageCodes.where((languageCode) => !_isSameLocale(languageCode, dartMainLocale)).toList(growable: false);
+    if (translationLanguageCodes.length != languageCodes.length) {
+      print('Protecting source locale "$dartMainLocale": skipping translation for matching language code(s).');
+    }
+
     Future<void> runForLanguage(String languageCode) async {
       final finalOutputFileName = _resolveSingleFileLanguageOutputName(
         outputFileName: outputFileName,
@@ -164,7 +170,7 @@ class SingleFileProcessor {
       );
     }
 
-    for (final chunk in _chunked(languageCodes, effectiveParallelism)) {
+    for (final chunk in _chunked(translationLanguageCodes, effectiveParallelism)) {
       await Future.wait(chunk.map(runForLanguage));
     }
 
@@ -179,8 +185,13 @@ class SingleFileProcessor {
       final tempL10nDir = path.join(workingOutputDirectory, 'temp_l10n');
       await Directory(tempL10nDir).create(recursive: true);
 
-      // Copy the generated files to the temp directory with intl_ prefix
+      // Copy the generated files to the temp directory with intl_ prefix.
+      // The source locale is protected: it must come from the source ARB, not
+      // from a cached/generated translation file that may be stale or polluted.
       for (final languageCode in languageCodes) {
+        if (_isSameLocale(languageCode, dartMainLocale)) {
+          continue;
+        }
         final sourceFile = path.join(workingOutputDirectory, '${sourceFileNameWithoutExt}_$languageCode$sourceFileExt');
         final targetFile = path.join(tempL10nDir, 'intl_$languageCode.arb');
 
@@ -189,11 +200,10 @@ class SingleFileProcessor {
         }
       }
 
-      // Also copy the source file as the main locale
+      // Always copy the source file as the main locale, overwriting any stale
+      // temp file that may have been copied from previous generated output.
       final mainLocaleFile = path.join(tempL10nDir, 'intl_$dartMainLocale.arb');
-      if (!File(mainLocaleFile).existsSync()) {
-        await arbFile.copy(mainLocaleFile);
-      }
+      await arbFile.copy(mainLocaleFile);
 
       // Validate ARB files exist
       final isValid = await DartCodeGenerator.validateArbFiles(
@@ -494,5 +504,9 @@ class SingleFileProcessor {
       final end = (start + size < items.length) ? start + size : items.length;
       yield items.sublist(start, end);
     }
+  }
+
+  static bool _isSameLocale(String left, String right) {
+    return left.trim().replaceAll('-', '_').toLowerCase() == right.trim().replaceAll('-', '_').toLowerCase();
   }
 }
