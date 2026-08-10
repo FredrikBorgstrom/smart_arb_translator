@@ -19,8 +19,10 @@ class LocalizationValidator {
   static final _locale = RegExp(r'^[a-z]{2,3}(?:[-_](?:[A-Z]{2}|[A-Z][a-z]{3}|\d{3}))?$');
   static final _placeholder = RegExp(r'\{\s*([A-Za-z_]\w*)\s*\}');
   static final _englishWord = RegExp(r'[A-Za-z]{3,}');
-  static final _commentary =
-      RegExp(r"^(?:here(?:'s| is)|translation\s*:|sure[,!]|note\s*:|i cannot)", caseSensitive: false);
+  static final _commentary = RegExp(
+    r"(?:here(?:'s| is)(?: the)? translation|translation\s*:|sure[,!]|note\s*:|i (?:cannot|can't)|as an ai|have to correct|got cut off|unable to translate|sorry[,!])",
+    caseSensitive: false,
+  );
 
   static List<LocalizationValidationIssue> validatePair({
     required ArbDocument source,
@@ -43,17 +45,34 @@ class LocalizationValidator {
       if (value.trim().isEmpty) {
         issues.add(LocalizationValidationIssue('empty_translation', entry.key, 'Translation is empty.'));
       }
-      if (_commentary.hasMatch(value.trim())) {
+      if (_commentary.hasMatch(value)) {
         issues
             .add(LocalizationValidationIssue('translator_commentary', entry.key, 'Looks like translator commentary.'));
       }
-      final sourcePlaceholders = _placeholder.allMatches(entry.value.text).map((match) => match.group(1)!).toSet();
-      final targetPlaceholders = _placeholder.allMatches(value).map((match) => match.group(1)!).toSet();
+      final sourceStructured = TranslationResource.fromArbResource(entry.value, sourceTopic: 'validation');
+      final sourceSimplePlaceholders =
+          _placeholder.allMatches(entry.value.text).map((match) => match.group(1)!).toSet();
+      final targetSimplePlaceholders = <String>{
+        ..._placeholder.allMatches(value).map((match) => match.group(1)!),
+        ...TranslationResource.fromArbResource(
+          targetResource,
+          sourceTopic: 'validation',
+        ).icuVariables,
+      };
+      final declaredPlaceholders = entry.value.attributes?.placeholders?.keys.toSet() ?? const <String>{};
+      final sourcePlaceholders = sourceStructured.icuVariables.isEmpty
+          ? sourceSimplePlaceholders
+          : <String>{
+              ...declaredPlaceholders,
+              ...sourceSimplePlaceholders.where(sourceStructured.icuVariables.contains),
+            };
+      final targetPlaceholders = sourceStructured.icuVariables.isEmpty
+          ? targetSimplePlaceholders
+          : targetSimplePlaceholders.intersection(sourcePlaceholders);
       if (!_sameSet(sourcePlaceholders, targetPlaceholders)) {
         issues.add(
             LocalizationValidationIssue('placeholder_parity', entry.key, 'Source and target placeholders differ.'));
       }
-      final sourceStructured = TranslationResource.fromArbResource(entry.value, sourceTopic: 'validation');
       final targetStructured = TranslationResource.fromArbResource(targetResource, sourceTopic: 'validation');
       if (!_sameSet(sourceStructured.icuVariables.toSet(), targetStructured.icuVariables.toSet()) ||
           !_sameSet(sourceStructured.icuRoles.toSet(), targetStructured.icuRoles.toSet()) ||
@@ -63,7 +82,7 @@ class LocalizationValidator {
       if (_looksLikePassthrough(entry.key, entry.value.text, value, targetLocale, allowedPassthrough)) {
         issues.add(LocalizationValidationIssue('source_passthrough', entry.key, 'Likely untranslated source text.'));
       }
-      final scriptIssue = _scriptIssue(value, targetLocale);
+      final scriptIssue = _scriptIssue(value, targetLocale, targetStructured);
       if (scriptIssue != null) {
         issues.add(LocalizationValidationIssue(scriptIssue, entry.key, 'Likely target-locale script mismatch.'));
       }
@@ -176,14 +195,31 @@ class LocalizationValidator {
     return RegExp(r'^[a-z][a-z0-9]*(?:[ -][a-z][a-z0-9]*)*$', caseSensitive: false).hasMatch(normalizedSource);
   }
 
-  static String? _scriptIssue(String value, String locale) {
+  static String? _scriptIssue(
+    String value,
+    String locale,
+    TranslationResource structured,
+  ) {
     final profile = _scriptProfile(locale);
     if (profile == null) return null;
     // Ignore technical values and tolerate a single product/brand word.
-    final prose = value
+    var prose = value
         .replaceAll(_placeholder, '')
         .replaceAll(RegExp(r'https?://\S+', caseSensitive: false), '')
         .replaceAll(RegExp(r'<[^>]+>'), ' ');
+    // ICU syntax is deliberately ASCII in every locale. Exclude its variable,
+    // role, and branch tokens while retaining the human-readable branch text;
+    // otherwise valid Japanese/Korean messages look spuriously mixed-script.
+    for (final token in <String>{
+      ...structured.icuVariables,
+      ...structured.icuRoles,
+      ...structured.icuBranches,
+    }) {
+      final escaped = RegExp.escape(token);
+      final pattern = token.startsWith('=') ? RegExp(escaped) : RegExp('(?<![A-Za-z0-9_])$escaped(?![A-Za-z0-9_])');
+      prose = prose.replaceAll(pattern, ' ');
+    }
+    prose = prose.replaceAll(RegExp(r'\boffset\s*:\s*\d+\b'), ' ').replaceAll(RegExp(r'[{},]'), ' ');
     final expectedCharacters = profile.allMatches(prose).length;
     final latinWords = _englishWord.allMatches(prose).map((match) => match.group(0)!).toList(growable: false);
     final latinCharacters = latinWords.fold<int>(0, (sum, word) => sum + word.length);

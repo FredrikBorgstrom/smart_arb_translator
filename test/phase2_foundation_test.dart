@@ -93,7 +93,7 @@ void main() {
 {"@@locale":"en","message":"{count, plural, one {One item} other {{count} items}}","@message":{"x-translations":{"bad locale":5}}}
 ''');
     final target = ArbDocument.decode('''
-{"@@locale":"fr","message":"Translation: {count, select, other {One item}}"}
+{"@@locale":"fr","message":"Translation: {total, select, other {One item}}"}
 ''');
     final codes = LocalizationValidator.validatePair(source: source, target: target, targetLocale: 'fr')
         .map((issue) => issue.code)
@@ -122,6 +122,79 @@ void main() {
         .map((issue) => issue.code)
         .toSet();
     expect(englishCodes, contains('target_script_mismatch'));
+  });
+
+  test('script validation ignores structural ICU tokens', () {
+    final source = ArbDocument.decode('''
+{"@@locale":"en","unread":"{unreadCount, plural, =1{1 unread} other{{unreadCount} unread}}","role":"{role, select, host {Host} player {Player} other {Player}}"}
+''');
+    final japanese = ArbDocument.decode('''
+{"@@locale":"ja","unread":"{unreadCount, plural, =1{1 件未読} other{{unreadCount} 件未読}}","role":"{role, select, host {ホスト} player {参加者} other {参加者}}"}
+''');
+    final korean = ArbDocument.decode('''
+{"@@locale":"ko","unread":"{unreadCount, plural, =1{1개 읽지 않음} other{{unreadCount}개 읽지 않음}}","role":"{role, select, host {호스트} player {참가자} other {참가자}}"}
+''');
+
+    for (final pair in <(String, ArbDocument)>[
+      ('ja', japanese),
+      ('ko', korean),
+    ]) {
+      final codes = LocalizationValidator.validatePair(
+        source: source,
+        target: pair.$2,
+        targetLocale: pair.$1,
+      ).map((issue) => issue.code);
+      expect(codes.where((code) => code.contains('script')), isEmpty);
+    }
+  });
+
+  test('validator detects translator commentary embedded after target text', () {
+    final source = ArbDocument.decode('''
+{"@@locale":"en","status":"Notifying opponents"}
+''');
+    final target = ArbDocument.decode('''
+{"@@locale":"hy","status":"Հակառակորդներին (Have to correct this; it got cut off) ծանուցում"}
+''');
+
+    final codes = LocalizationValidator.validatePair(
+      source: source,
+      target: target,
+      targetLocale: 'hy',
+    ).map((issue) => issue.code);
+
+    expect(codes, contains('translator_commentary'));
+  });
+
+  test('validator does not mistake one-word select branch text for placeholders', () {
+    final source = ArbDocument.decode('''
+{"@@locale":"en","role":"{role, select, host {Host} player {Player} other {Player}}"}
+''');
+    final target = ArbDocument.decode('''
+{"@@locale":"fr","role":"{role, select, host {Hôte} player {Joueur} other {Joueur}}"}
+''');
+    final codes = LocalizationValidator.validatePair(
+      source: source,
+      target: target,
+      targetLocale: 'fr',
+    ).map((issue) => issue.code);
+    expect(codes, isNot(contains('placeholder_parity')));
+    expect(codes, isNot(contains('icu_integrity')));
+  });
+
+  test('validator extracts only structural ICU labels around nested placeholders', () {
+    final source = ArbDocument.decode('''
+{"@@locale":"en","score":"{count, plural, one {Scored {score} word} other {Scored {score} words}}","@score":{"placeholders":{"count":{"type":"int"},"score":{"type":"int"}}}}
+''');
+    final target = ArbDocument.decode('''
+{"@@locale":"fr","score":"{count, plural, one {Marqué {score} mot} other {Marqué {score} mots}}","@score":{"placeholders":{"count":{"type":"int"},"score":{"type":"int"}}}}
+''');
+    final codes = LocalizationValidator.validatePair(
+      source: source,
+      target: target,
+      targetLocale: 'fr',
+    ).map((issue) => issue.code);
+    expect(codes, isNot(contains('placeholder_parity')));
+    expect(codes, isNot(contains('icu_integrity')));
   });
 
   test('validators flag one-word Arabic passthrough unless it is allowlisted', () {

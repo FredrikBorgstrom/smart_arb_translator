@@ -294,6 +294,62 @@ Translator never downloads or selects a model automatically. Keep
 `parallel_translations: 1` unless the local runtime can load and execute
 multiple model requests safely.
 
+### Local-model benchmark
+
+Run the explicitly invoked benchmark tool only after a local model is already
+installed and serving an OpenAI-compatible endpoint:
+
+```bash
+dart run tool/local_model_benchmark.dart \
+  --input benchmark_corpus.json \
+  --output benchmark_results_qwen2.5_32b.json \
+  --model qwen2.5:32b \
+  --endpoint http://127.0.0.1:11434/v1/chat/completions \
+  --profile openai_chat_json \
+  --locale fr --locale ar
+```
+
+The tool never downloads, starts, or chooses a model; it uses only
+`translation_service: local_llm` with no provider fallback. Locales always run
+sequentially. The generic `openai_chat_json` profile sends one keyed resource
+batch per locale; `translategemma` retains its translation-only one-resource
+internal requests. Results are ordered JSON with model/profile/endpoint-class
+provenance, honest per-locale batch elapsed milliseconds, English/translation
+pairs, and deterministic validation findings.
+
+The supported benchmark corpus is a generic superset of ABCx3's schema:
+
+```json
+{
+  "schema_version": 1,
+  "locales": ["fr", "ar"],
+  "resources": [{
+    "id": "back",
+    "source": "Back",
+    "source_topic": "ui.arb",
+    "description": "Navigation action",
+    "placeholders": {},
+    "icu_variables": [],
+    "icu_roles": [],
+    "icu_branches": [],
+    "ui_role": "navigation_action",
+    "screen_context": "game setup",
+    "neighboring_terms": ["Next"],
+    "glossary": {"board": "game board"},
+    "locales": ["fr", "ar"]
+  }]
+}
+```
+
+`source_text` is an accepted alias for `source`; resource `locales` narrows
+the top-level locales. Extra corpus fields are ignored rather than sent to the
+model. Use `--help` to inspect the complete CLI without contacting a server.
+
+ABCx3's checked-in corpus is accepted without conversion: use top-level
+`schemaVersion`, `targetLocales`, and `cases`; each case maps `key` to the ARB
+resource id, `feature` to source topic, and its `targetLocales` to the resource
+locale subset. The original case `id` is retained as `case_id` in results.
+
 ### 5. ARB File Structure
 
 Ensure your ARB files follow the standard format:

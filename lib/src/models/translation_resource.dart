@@ -50,12 +50,7 @@ class TranslationResource {
     ).allMatches(text).toList(growable: false);
     final variables = icuMatches.map((match) => match.group(1)!).toList(growable: false);
     final roles = icuMatches.map((match) => match.group(2)!).toList(growable: false);
-    final branches = RegExp(r'(?:=\d+|zero|one|two|few|many|other|[A-Za-z_]\w*)\s*\{')
-        .allMatches(text)
-        .map(
-          (match) => match.group(0)!.replaceFirst(RegExp(r'\s*\{$'), '').trim(),
-        )
-        .toList(growable: false);
+    final branches = icuMatches.isEmpty ? const <String>[] : _extractIcuBranchLabels(text);
     return TranslationResource(
       id: resource.id,
       sourceText: text,
@@ -74,8 +69,11 @@ class TranslationResource {
 
   Map<String, dynamic> toJson({String? protectedSourceText}) => <String, dynamic>{
         'id': id,
-        'source_text': sourceText,
-        if (protectedSourceText != null) 'protected_source_text': protectedSourceText,
+        // Provider payloads must expose exactly one authoritative source field.
+        // Sending both raw and protected variants lets a model copy the raw
+        // placeholder spelling and defeats exact canonical-token validation.
+        'source_text': protectedSourceText ?? sourceText,
+        if (protectedSourceText != null && protectedSourceText != sourceText) 'placeholder_tokens_protected': true,
         if (description != null && description!.isNotEmpty) 'description': description,
         'source_topic': sourceTopic,
         if (placeholders.isNotEmpty) 'placeholders': placeholders,
@@ -87,6 +85,56 @@ class TranslationResource {
         if (neighboringTerms.isNotEmpty) 'neighboring_terms': neighboringTerms,
         if (glossary.isNotEmpty) 'glossary': glossary,
       };
+}
+
+List<String> _extractIcuBranchLabels(String message) {
+  final branches = <String>[];
+  final headers = RegExp(
+    r'\{\s*[A-Za-z_]\w*\s*,\s*(plural|select)\s*,',
+  ).allMatches(message);
+  for (final header in headers) {
+    final outerEnd = _matchingIcuBrace(message, header.start);
+    if (outerEnd == null) continue;
+    final role = header.group(1)!;
+    final labelPattern = role == 'plural' ? RegExp(r'(?:=\d+|zero|one|two|few|many|other)') : RegExp(r'[A-Za-z_]\w*');
+    var index = header.end;
+    while (index < outerEnd) {
+      while (index < outerEnd && RegExp(r'\s').hasMatch(message[index])) {
+        index++;
+      }
+      if (message.startsWith('offset:', index)) {
+        index += 'offset:'.length;
+        while (index < outerEnd && RegExp(r'[\d\s]').hasMatch(message[index])) {
+          index++;
+        }
+        continue;
+      }
+      final label = labelPattern.matchAsPrefix(message, index);
+      if (label == null) break;
+      index = label.end;
+      while (index < outerEnd && RegExp(r'\s').hasMatch(message[index])) {
+        index++;
+      }
+      if (index >= outerEnd || message[index] != '{') break;
+      branches.add(label.group(0)!);
+      final branchEnd = _matchingIcuBrace(message, index);
+      if (branchEnd == null || branchEnd > outerEnd) break;
+      index = branchEnd + 1;
+    }
+  }
+  return branches;
+}
+
+int? _matchingIcuBrace(String value, int openingIndex) {
+  var depth = 0;
+  for (var index = openingIndex; index < value.length; index++) {
+    if (value[index] == '{') depth++;
+    if (value[index] == '}') {
+      depth--;
+      if (depth == 0) return index;
+    }
+  }
+  return null;
 }
 
 /// A keyed result returned by a structured translation provider.

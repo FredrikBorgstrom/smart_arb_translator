@@ -124,6 +124,7 @@ class TranslationService {
     String? credentialsFile,
     String? quotaProjectId,
     String? accessToken,
+    bool allowPerItemFallback = true,
     LocalLlmOptions? localLlmOptions,
     http.Client? client,
   }) async {
@@ -193,7 +194,7 @@ class TranslationService {
     }
     final openAiModel = (parameters['openai_model'] as String?)?.trim();
     final values = await _translateWithChatCompletions(
-      translateList: resources.map((resource) => toHtml(resource.sourceText)).toList(growable: false),
+      translateList: resources.map(_protectStructuredResourcePlaceholders).toList(growable: false),
       resources: resources,
       parameters: parameters,
       endpoint: translationService == 'openai' ? Uri.parse(_openAiChatCompletionsUrl) : localLlmOptions!.endpoint,
@@ -205,7 +206,7 @@ class TranslationService {
       jsonMode: translationService == 'openai' || localLlmOptions!.jsonMode,
       timeout: translationService == 'openai' ? null : localLlmOptions!.timeout,
       client: client,
-      allowPerItemFallback: true,
+      allowPerItemFallback: allowPerItemFallback,
     );
     return List<TranslationResult>.generate(
       resources.length,
@@ -226,7 +227,9 @@ class TranslationService {
     if (target == null || target.isEmpty) {
       throw ArgumentError('Target language is required for TranslateGemma translation.');
     }
-    final prepared = _prepareOpenAiTexts([toHtml(resource.sourceText)]);
+    final prepared = _prepareOpenAiTexts([
+      _protectStructuredResourcePlaceholders(resource),
+    ]);
     final protectedText = prepared.promptTexts.single;
     final context = <String>[
       if (resource.description != null && resource.description!.isNotEmpty) 'Context: ${resource.description}',
@@ -543,6 +546,13 @@ class TranslationService {
             preparedTexts.placeholderTokensByText,
             providerLabel: providerLabel,
           );
+          if (resources != null) {
+            _assertStructuredIcuIntegrity(
+              resources: resources,
+              translations: restoredTranslations,
+              providerLabel: providerLabel,
+            );
+          }
           _assertTranslationsLikelyLocalized(
             translations: restoredTranslations,
             promptTexts: preparedTexts.promptTexts,
@@ -678,6 +688,9 @@ class TranslationService {
         'Placeholder tokens follow the pattern "__SMART_ARB_PH_<number>__". Never translate, alter, remove, or reorder these tokens.',
       )
       ..writeln(
+        'Preserve ICU variable names, plural/select keywords, branch labels, and brace structure exactly; translate only human-readable branch text.',
+      )
+      ..writeln(
         'Do not add or remove items, and keep the same order as the input list.',
       )
       ..writeln(
@@ -713,6 +726,9 @@ class TranslationService {
       systemPrompt
         ..writeln(
           'For structured resources, return every supplied id exactly once.',
+        )
+        ..writeln(
+          'Translate only each resource source_text field; source_text is already the authoritative placeholder-protected form.',
         )
         ..writeln(
           'Use {"translations":[{"id":"<id>","translation":"<text>"}]}; never translate context fields.',
@@ -976,6 +992,77 @@ class TranslationService {
       promptTexts: promptTexts,
       placeholderTokensByText: placeholderTokensByText,
     );
+  }
+
+  /// Protects only declared interpolation placeholders for structured LLM
+  /// requests. Passing a whole plural/select message through [toHtml] creates
+  /// nested spans from nested ICU braces, which a flat span parser cannot
+  /// recover safely.
+  static String _protectStructuredResourcePlaceholders(
+    TranslationResource resource,
+  ) {
+    var protectedText = resource.sourceText;
+    final placeholderNames = resource.placeholders.keys.toSet();
+    if (resource.icuVariables.isEmpty && resource.icuRoles.isEmpty) {
+      placeholderNames.addAll(
+        RegExp(r'\{\s*([A-Za-z_]\w*)\s*\}').allMatches(resource.sourceText).map((match) => match.group(1)!),
+      );
+    }
+    final sortedPlaceholderNames = placeholderNames.toList()
+      ..sort((left, right) => right.length.compareTo(left.length));
+    for (final placeholderName in sortedPlaceholderNames) {
+      final placeholder = RegExp(
+        '\\{\\s*${RegExp.escape(placeholderName)}\\s*\\}',
+      );
+      protectedText = protectedText.replaceAllMapped(
+        placeholder,
+        (_) => '<span class="notranslate">$placeholderName</span>',
+      );
+    }
+    return protectedText;
+  }
+
+  static void _assertStructuredIcuIntegrity({
+    required List<TranslationResource> resources,
+    required List<String> translations,
+    required String providerLabel,
+  }) {
+    for (var index = 0; index < resources.length; index++) {
+      final suppliedSource = resources[index];
+      final sourceResource = ArbResource.fromEntries(
+        textEntry: MapEntry(suppliedSource.id, suppliedSource.sourceText),
+        attributesEntry: null,
+      );
+      final source = TranslationResource.fromArbResource(
+        sourceResource,
+        sourceTopic: suppliedSource.sourceTopic,
+      );
+      if (source.icuVariables.isEmpty) {
+        continue;
+      }
+      final targetResource = ArbResource.fromEntries(
+        textEntry: MapEntry(suppliedSource.id, translations[index]),
+        attributesEntry: null,
+      );
+      final target = TranslationResource.fromArbResource(
+        targetResource,
+        sourceTopic: source.sourceTopic,
+      );
+      if (!_sameStringSet(source.icuVariables, target.icuVariables) ||
+          !_sameStringSet(source.icuRoles, target.icuRoles) ||
+          !_sameStringSet(source.icuBranches, target.icuBranches)) {
+        throw _LlmFormatException(
+          _LlmFormatErrorKind.placeholder,
+          '$providerLabel changed ICU variables, roles, branches, or brace structure in translation item ${index + 1}.',
+        );
+      }
+    }
+  }
+
+  static bool _sameStringSet(Iterable<String> left, Iterable<String> right) {
+    final leftSet = left.toSet();
+    final rightSet = right.toSet();
+    return leftSet.length == rightSet.length && leftSet.containsAll(rightSet);
   }
 
   static List<String> _restoreOpenAiPlaceholders(

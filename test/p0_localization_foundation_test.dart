@@ -53,8 +53,9 @@ void main() {
         expect(structured[0]['ui_role'], 'navigation_action');
         expect(structured[0]['description'], contains('previous screen'));
         expect(structured[1]['description'], contains('Imperative'));
-        expect(structured[2]['source_text'], 'Background {color}');
-        expect(structured[2]['protected_source_text'], contains('__SMART_ARB_PH_0__'));
+        expect(structured[2]['source_text'], contains('__SMART_ARB_PH_0__'));
+        expect(structured[2]['placeholder_tokens_protected'], isTrue);
+        expect(structured[2], isNot(contains('protected_source_text')));
         expect((structured[2]['placeholders'] as Map)['color'], containsPair('description', 'Selected color name'));
         expect(structured[2]['source_topic'], 'game_board_designer.arb');
         return http.Response(
@@ -70,6 +71,52 @@ void main() {
         client: client,
       );
       expect(values.map((result) => result.translation), ['Retour', 'Effacer', 'Arrière-plan {color}']);
+    });
+
+    test('structured local request preserves nested ICU instead of creating nested HTML spans', () async {
+      const resource = TranslationResource(
+        id: 'unread',
+        sourceText: '{unreadCount, plural, =1{1 unread} other{{unreadCount} unread}}',
+        description: 'Unread badge label.',
+        sourceTopic: 'community_chat.arb',
+        placeholders: {
+          'unreadCount': {'type': 'int'}
+        },
+        icuVariables: ['unreadCount'],
+        icuRoles: ['plural'],
+        icuBranches: ['=1', 'other'],
+      );
+      var calls = 0;
+      final client = MockClient((request) async {
+        calls++;
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final payload = jsonDecode((body['messages'] as List)[1]['content'] as String) as Map<String, dynamic>;
+        final structured = List<Map<String, dynamic>>.from(payload['resources'] as List);
+        expect(
+          structured.single['source_text'],
+          '{unreadCount, plural, =1{1 unread} other{__SMART_ARB_PH_0__ unread}}',
+        );
+        expect(
+          structured.single['source_text'],
+          isNot(contains('notranslate')),
+        );
+        return http.Response(
+          '{"choices":[{"message":{"content":"{\\"translations\\":[{\\"id\\":\\"unread\\",\\"translation\\":\\"{unreadCount, plural, =1{1 non lu} other{__SMART_ARB_PH_0__ non lus}}\\"}]}"}}]}',
+          200,
+        );
+      });
+      final values = await TranslationService.translateResources(
+        resources: const [resource],
+        parameters: {'target': 'fr'},
+        translationService: 'local_llm',
+        localLlmOptions: LocalLlmOptions.fromConfig(model: 'test-local'),
+        client: client,
+      );
+      expect(calls, 1);
+      expect(
+        values.single.translation,
+        '{unreadCount, plural, =1{1 non lu} other{{unreadCount} non lus}}',
+      );
     });
 
     test('full x-translations cover manual_only without HTTP', () async {

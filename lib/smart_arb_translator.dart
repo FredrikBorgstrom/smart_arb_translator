@@ -24,6 +24,7 @@ export 'src/directory_processor.dart';
 export 'src/file_operations.dart';
 export 'src/icu_parser.dart';
 export 'src/localization_validator.dart';
+export 'src/local_model_benchmark.dart';
 export 'src/models/arb_attributes.dart';
 // Model exports
 export 'src/models/arb_document.dart';
