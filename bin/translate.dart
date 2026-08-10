@@ -2,10 +2,15 @@
 
 import 'dart:io';
 
+import 'package:path/path.dart' as path;
 import 'package:smart_arb_translator/src/argument_parser.dart';
 import 'package:smart_arb_translator/src/cache_cleanup.dart';
 import 'package:smart_arb_translator/src/directory_processor.dart';
 import 'package:smart_arb_translator/src/models/local_llm_options.dart';
+import 'package:smart_arb_translator/src/localization_validator.dart';
+import 'package:smart_arb_translator/src/models/arb_document.dart';
+import 'package:smart_arb_translator/src/models/translation_resource.dart';
+import 'package:smart_arb_translator/src/reviewed_overlay.dart';
 import 'package:smart_arb_translator/src/single_file_processor.dart';
 
 Future<void> main(List<String> args) async {
@@ -48,7 +53,13 @@ Future<void> main(List<String> args) async {
     }
 
     // Extract common parameters
-    final languageCodes = result[ArbTranslatorArgumentParser.languageCodes] as List<String>;
+    var languageCodes = result[ArbTranslatorArgumentParser.languageCodes] as List<String>;
+    final localeFilter = result[ArbTranslatorArgumentParser.localeFilter] as List<String>? ?? const [];
+    final sourceFileFilter = result[ArbTranslatorArgumentParser.sourceFileFilter] as List<String>? ?? const [];
+    final keyFilter = result[ArbTranslatorArgumentParser.keyFilter] as List<String>? ?? const [];
+    if (localeFilter.isNotEmpty) {
+      languageCodes = languageCodes.where(localeFilter.contains).toList(growable: false);
+    }
     var apiKey = result[ArbTranslatorArgumentParser.apiKey] as String?;
 
     // Check if apiKey is a file path and read it if so
@@ -73,7 +84,10 @@ Future<void> main(List<String> args) async {
     final credentialsFile = result[ArbTranslatorArgumentParser.credentialsFile] as String?;
     final quotaProjectId = result[ArbTranslatorArgumentParser.quotaProjectId] as String?;
     final openaiModel = result[ArbTranslatorArgumentParser.openaiModel] as String? ?? 'gpt-4o-mini';
-    final localLlmOptions = translationService == 'local_llm'
+    final manualOnly = (result[ArbTranslatorArgumentParser.manualOnly] as bool? ?? false) ||
+        (result[ArbTranslatorArgumentParser.offline] as bool? ?? false) ||
+        (result[ArbTranslatorArgumentParser.mergeReviewedOnly] as bool? ?? false);
+    final localLlmOptions = translationService == 'local_llm' && !manualOnly
         ? LocalLlmOptions.fromConfig(
             endpoint: result[ArbTranslatorArgumentParser.localLlmUrl] as String? ?? LocalLlmOptions.defaultEndpoint,
             model: result[ArbTranslatorArgumentParser.localLlmModel] as String,
@@ -81,16 +95,58 @@ Future<void> main(List<String> args) async {
             timeoutSeconds: ArbTranslatorArgumentParser.parseLocalLlmTimeoutSeconds(
               result[ArbTranslatorArgumentParser.localLlmTimeoutSeconds],
             ),
+            profile: result[ArbTranslatorArgumentParser.localLlmProfile] as String? ?? 'openai_chat_json',
           )
         : null;
     final translationContext = _readTranslationContext(
       result[ArbTranslatorArgumentParser.translationContext] as String?,
       result[ArbTranslatorArgumentParser.translationContextFile] as String?,
     );
+    final reviewedTranslationsDir = result[ArbTranslatorArgumentParser.reviewedTranslationsDir] as String?;
 
     // Determine processing mode
     final sourceArb = result[ArbTranslatorArgumentParser.sourceArb] as String?;
     final sourceDir = result[ArbTranslatorArgumentParser.sourceDir] as String?;
+    final sourceFiles = sourceArb == null
+        ? (sourceDir == null
+            ? const <File>[]
+            : Directory(sourceDir)
+                .listSync(recursive: true)
+                .whereType<File>()
+                .where((file) => file.path.endsWith('.arb')))
+        : [File(sourceArb)];
+
+    if (result[ArbTranslatorArgumentParser.validateOnly] as bool? ?? false) {
+      final issues = sourceFiles.expand((file) => LocalizationValidator.validateArbFile(file));
+      for (final issue in issues) print(issue);
+      if (issues.isNotEmpty) exitCode = 2;
+      return;
+    }
+    if (result[ArbTranslatorArgumentParser.dryRunNetworkPlan] as bool? ?? false) {
+      print(manualOnly
+          ? 'Dry-run network plan: zero provider requests (manual/offline mode).'
+          : 'Dry-run network plan: only x-translations, current reviewed overlays, and current provenance cache avoid provider requests.');
+      return;
+    }
+    if (result[ArbTranslatorArgumentParser.listStaleReviewed] as bool? ?? false) {
+      for (final file in sourceFiles) {
+        final document = ArbDocument.decode(file.readAsStringSync());
+        final resources = document.resources.values
+            .map((resource) => TranslationResource.fromArbResource(resource, sourceTopic: path.basename(file.path)));
+        for (final locale in languageCodes) {
+          for (final key in ReviewedOverlay.staleKeys(
+            rootDirectory: reviewedTranslationsDir,
+            locale: locale,
+            sourceFile: file.path,
+            resources: resources,
+            translationContext: translationContext,
+          )) {
+            print('$locale/${path.basename(file.path)}#$key');
+          }
+        }
+      }
+      return;
+    }
 
     if (sourceArb != null) {
       // Single file processing
@@ -118,6 +174,9 @@ Future<void> main(List<String> args) async {
         openaiModel: openaiModel,
         translationContext: translationContext,
         localLlmOptions: localLlmOptions,
+        reviewedTranslationsDir: reviewedTranslationsDir,
+        manualOnly: manualOnly,
+        resourceKeyFilter: keyFilter.isEmpty ? null : keyFilter.toSet(),
       );
     } else if (sourceDir != null) {
       // Directory processing
@@ -147,6 +206,10 @@ Future<void> main(List<String> args) async {
         openaiModel: openaiModel,
         translationContext: translationContext,
         localLlmOptions: localLlmOptions,
+        reviewedTranslationsDir: reviewedTranslationsDir,
+        manualOnly: manualOnly,
+        sourceFileFilters: sourceFileFilter.isEmpty ? null : sourceFileFilter.toSet(),
+        resourceKeyFilter: keyFilter.isEmpty ? null : keyFilter.toSet(),
       );
     }
 

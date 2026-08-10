@@ -99,6 +99,8 @@ class PubspecConfig {
   /// Maximum duration of one local inference request, in seconds.
   final int? localLlmTimeoutSeconds;
 
+  final String? localLlmProfile;
+
   /// Optional context prompt to guide LLM translations.
   final String? translationContext;
 
@@ -112,6 +114,12 @@ class PubspecConfig {
   /// behavior. Increase this to send multiple language requests in parallel and
   /// reduce wall-clock time for large language lists.
   final int? parallelTranslations;
+
+  /// Source-controlled per-locale reviewed ARB overlays.
+  final String? reviewedTranslationsDir;
+
+  /// Forbid provider calls and report any key not covered by x/review/cache.
+  final bool? manualOnly;
 
   /// Creates a new pubspec configuration instance.
   ///
@@ -142,9 +150,12 @@ class PubspecConfig {
     this.localLlmModel,
     this.localLlmJsonMode,
     this.localLlmTimeoutSeconds,
+    this.localLlmProfile,
     this.translationContext,
     this.translationContextFile,
     this.parallelTranslations,
+    this.reviewedTranslationsDir,
+    this.manualOnly,
   });
 
   /// Loads configuration from a pubspec.yaml file.
@@ -209,10 +220,17 @@ class PubspecConfig {
         localLlmUrl: config['local_llm_url'] as String?,
         localLlmModel: config['local_llm_model'] as String?,
         localLlmJsonMode: config['local_llm_json_mode'] as bool?,
-        localLlmTimeoutSeconds: _parsePositiveInt(config['local_llm_timeout_seconds']),
+        localLlmTimeoutSeconds: _parsePositiveInt(
+          config['local_llm_timeout_seconds'],
+        ),
+        localLlmProfile: config['local_llm_profile'] as String?,
         translationContext: config['translation_context'] as String?,
         translationContextFile: config['translation_context_file'] as String?,
-        parallelTranslations: _parsePositiveInt(config['parallel_translations']),
+        parallelTranslations: _parsePositiveInt(
+          config['parallel_translations'],
+        ),
+        reviewedTranslationsDir: config['reviewed_translations_dir'] as String?,
+        manualOnly: config['manual_only'] as bool?,
       );
     } catch (e) {
       // If there's any error reading the config, return null
@@ -294,9 +312,12 @@ class PubspecConfig {
         localLlmModel != null ||
         localLlmJsonMode != null ||
         localLlmTimeoutSeconds != null ||
+        localLlmProfile != null ||
         translationContext != null ||
         translationContextFile != null ||
-        parallelTranslations != null;
+        parallelTranslations != null ||
+        reviewedTranslationsDir != null ||
+        manualOnly != null;
   }
 
   /// Returns a string representation of this configuration.

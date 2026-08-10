@@ -114,6 +114,10 @@ class DirectoryProcessor {
     String? translationContext,
     LocalLlmOptions? localLlmOptions,
     int parallelTranslations = 1,
+    String? reviewedTranslationsDir,
+    bool manualOnly = false,
+    Set<String>? sourceFileFilters,
+    Set<String>? resourceKeyFilter,
   }) async {
     dartClassName ??= (l10nMethod == 'gen-l10n') ? 'AppLocalizations' : 'S';
     final effectiveParallelism = parallelTranslations < 1 ? 1 : parallelTranslations;
@@ -167,6 +171,7 @@ class DirectoryProcessor {
     // Find all ARB files recursively
     final arbFiles = (await translator_file_ops.FileOperations.findArbFiles(sourceDir))
         .where((file) => !_isGeneratedLocaleMergeFile(file.path))
+        .where((file) => sourceFileFilters == null || sourceFileFilters.contains(path.basename(file.path)))
         .toList(growable: false);
     if (arbFiles.isEmpty) {
       _setBrightRed();
@@ -207,6 +212,9 @@ class DirectoryProcessor {
         translationContext: translationContext,
         localLlmOptions: localLlmOptions,
         parallelTranslations: effectiveParallelism,
+        reviewedTranslationsDir: reviewedTranslationsDir,
+        manualOnly: manualOnly,
+        resourceKeyFilter: resourceKeyFilter,
       );
     }
 
@@ -425,6 +433,9 @@ class DirectoryProcessor {
     required String? translationContext,
     required LocalLlmOptions? localLlmOptions,
     required int parallelTranslations,
+    required String? reviewedTranslationsDir,
+    required bool manualOnly,
+    required Set<String>? resourceKeyFilter,
   }) async {
     final fileExt = path.extension(path.basename(arbFile.path));
     final relativePath = path.relative(arbFile.path, from: workingSourcePath);
@@ -454,6 +465,9 @@ class DirectoryProcessor {
         openaiModel: openaiModel,
         translationContext: translationContext,
         localLlmOptions: localLlmOptions,
+        reviewedTranslationsDir: reviewedTranslationsDir,
+        manualOnly: manualOnly,
+        resourceKeyFilter: resourceKeyFilter,
       );
     }
 

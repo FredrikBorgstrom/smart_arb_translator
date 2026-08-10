@@ -3,6 +3,22 @@
 ///
 /// This works with local runtimes such as Ollama, LM Studio, llama.cpp, and
 /// vLLM when they expose an OpenAI-compatible `/v1/chat/completions` endpoint.
+enum LocalLlmProfile {
+  openaiChatJson,
+  translategemma;
+
+  static LocalLlmProfile parse(String value) {
+    switch (value.trim().toLowerCase()) {
+      case 'openai_chat_json':
+        return LocalLlmProfile.openaiChatJson;
+      case 'translategemma':
+        return LocalLlmProfile.translategemma;
+      default:
+        throw ArgumentError.value(value, 'profile', 'Supported profiles: openai_chat_json, translategemma.');
+    }
+  }
+}
+
 class LocalLlmOptions {
   /// Default Ollama OpenAI-compatible chat-completions endpoint.
   static const String defaultEndpoint = 'http://127.0.0.1:11434/v1/chat/completions';
@@ -22,11 +38,15 @@ class LocalLlmOptions {
   /// Maximum duration of a single local inference request.
   final Duration timeout;
 
+  /// Prompt/response protocol for the local model family.
+  final LocalLlmProfile profile;
+
   const LocalLlmOptions({
     required this.endpoint,
     required this.model,
     this.jsonMode = true,
     this.timeout = const Duration(seconds: defaultTimeoutSeconds),
+    this.profile = LocalLlmProfile.openaiChatJson,
   });
 
   /// Builds and validates local LLM configuration from CLI or YAML values.
@@ -35,6 +55,7 @@ class LocalLlmOptions {
     required String model,
     bool jsonMode = true,
     int timeoutSeconds = defaultTimeoutSeconds,
+    String profile = 'openai_chat_json',
   }) {
     final normalizedModel = model.trim();
     if (normalizedModel.isEmpty) {
@@ -73,6 +94,7 @@ class LocalLlmOptions {
       model: normalizedModel,
       jsonMode: jsonMode,
       timeout: Duration(seconds: timeoutSeconds),
+      profile: LocalLlmProfile.parse(profile),
     );
   }
 

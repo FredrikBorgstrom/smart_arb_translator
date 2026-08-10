@@ -218,6 +218,14 @@ Text(AppLocalizations.of(context).yourTranslationKey)
 For `translation_service: google_llm`, Google Cloud Translation Advanced v3 is used.
 `translation-llm` is called in the `us-central1` location.
 
+Structured Google LLM requests preserve a resource identity through an opaque
+request label and send a plain whole resource only when it contains no ARB
+interpolation or ICU syntax. ICU/placeholder values remain on the established
+action projection. Google Basic/NMT expose only the translatable `q` field, so
+the package deliberately keeps descriptions and prompt context out of that
+field; embedding them would leak translated metadata into the UI. Their local
+resource identity/provenance remains keyed and deterministic.
+
 - `auth_mode: adc` (recommended for local dev):
   - Run `gcloud auth application-default login`
   - Optional but recommended: `gcloud auth application-default set-quota-project YOUR_PROJECT_ID`
@@ -256,8 +264,30 @@ smart_arb_translator:
   local_llm_model: qwen3.5:27b
   local_llm_json_mode: true
   local_llm_timeout_seconds: 600
+  local_llm_profile: openai_chat_json # or translategemma
   parallel_translations: 1
 ```
+
+`translategemma` uses its translation-only contract, sends one ARB resource per
+request, maps `fil` to `fil-PH`, and never falls back to a paid provider. It is
+intended for an explicitly configured local model; the package never downloads
+or starts one.
+
+An optional local smoke test is excluded by default: set
+`SMART_ARB_LOCAL_SMOKE_MODEL` (and optionally URL/profile) then run
+`dart test -t local-smoke --run-skipped`.
+
+For Codex-reviewed projects, configure `reviewed_translations_dir` and run with
+`manual_only: true` (or `--offline`). Reviewed ledgers must minimally pair each
+ARB value with `source`, `translation`, `sourceFingerprint`, and
+`contextFingerprint`; review workflow ledgers additionally require primary and
+verification verdicts. Provider/model changes invalidate automatic cache data,
+not reviewed translations.
+
+`LocalizationValidator.validatePair` treats unchanged short controls such as
+`Back`, `Clear`, and `Background` as suspicious for non-English targets.
+Consumers can pass `passthroughAllowlist` with an ARB key or literal
+brand/technical token such as `ABCx3` when it is intentionally unchanged.
 
 The local server and configured model must already be available. Smart ARB
 Translator never downloads or selects a model automatically. Keep
@@ -351,6 +381,9 @@ smart_arb_translator:
   # local_llm_model: qwen3.5:27b              # Required when translation_service=local_llm
   # local_llm_json_mode: true                 # Disable for endpoints that reject response_format
   # local_llm_timeout_seconds: 600            # Local inference can be slower than a hosted API
+  # local_llm_profile: openai_chat_json        # or translategemma
+  # reviewed_translations_dir: lib/l10n_reviewed
+  # manual_only: true
   translation_context: Keep product terms in English
   translation_context_file: docs/translation_context.md
 
@@ -491,9 +524,17 @@ All options can be configured in `pubspec.yaml` under the `smart_arb_translator`
 | `--local_llm_model` | Model identifier exposed by the local runtime; required for `local_llm` | - | `local_llm_model` |
 | `--[no-]local_llm_json_mode` | Request JSON mode through `response_format` | `true` | `local_llm_json_mode` |
 | `--local_llm_timeout_seconds` | Timeout for one local inference request | `600` | `local_llm_timeout_seconds` |
+| `--local_llm_profile` | `openai_chat_json` (default) or translation-only `translategemma` | `openai_chat_json` | `local_llm_profile` |
 | `--translation_context` | Optional context text for LLM translation style/tone | - | `translation_context` |
 | `--translation_context_file` | Optional file with context text for LLM translations | - | `translation_context_file` |
 | `--parallel_translations` | Maximum number of per-language translation requests sent in parallel for a single source ARB file. Higher values speed up large language lists at the cost of more concurrent requests against the translation provider. | `1` | `parallel_translations` |
+| `--reviewed_translations_dir` | Root containing `<locale>/<feature>.arb` and `<feature>.review.json` overlays | - | `reviewed_translations_dir` |
+| `--manual_only`, `--offline`, `--manual` | Never call a provider; fail with exact missing coverage | `false` | `manual_only` |
+| `--merge_reviewed_only` | Generate only from x-translations, reviewed overlays, or valid cache | `false` | - |
+| `--validate_only` | Validate ARB syntax/locale metadata and exit without credentials or network | `false` | - |
+| `--list_stale_reviewed` | List source keys without a current reviewed overlay | `false` | - |
+| `--dry_run_network_plan` | Print a no-network provider-plan summary and exit | `false` | - |
+| `--locale`, `--source_file`, `--key` | Limit processing to selected locales, feature ARBs, or message keys | - | - |
 
 
 ### Configuration Precedence

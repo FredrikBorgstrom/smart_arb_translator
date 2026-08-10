@@ -23,12 +23,16 @@ export 'src/dart_code_generator.dart';
 export 'src/directory_processor.dart';
 export 'src/file_operations.dart';
 export 'src/icu_parser.dart';
+export 'src/localization_validator.dart';
 export 'src/models/arb_attributes.dart';
 // Model exports
 export 'src/models/arb_document.dart';
 export 'src/models/arb_resource.dart';
 export 'src/models/local_llm_options.dart';
+export 'src/models/translation_resource.dart';
+export 'src/models/google_resource_adapter.dart';
 export 'src/pubspec_config.dart';
+export 'src/reviewed_overlay.dart';
 export 'src/single_file_processor.dart';
 // Core functionality exports
 export 'src/translation_service.dart';

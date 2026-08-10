@@ -10,6 +10,10 @@ import 'package:smart_arb_translator/src/cache_cleanup.dart';
 import 'package:smart_arb_translator/src/console_utils.dart';
 import 'package:smart_arb_translator/src/directory_processor.dart';
 import 'package:smart_arb_translator/src/models/local_llm_options.dart';
+import 'package:smart_arb_translator/src/localization_validator.dart';
+import 'package:smart_arb_translator/src/models/arb_document.dart';
+import 'package:smart_arb_translator/src/models/translation_resource.dart';
+import 'package:smart_arb_translator/src/reviewed_overlay.dart';
 import 'package:smart_arb_translator/src/single_file_processor.dart';
 import 'package:yaml/yaml.dart';
 
@@ -91,8 +95,11 @@ void main(List<String> args) async {
   /* if (outputFileName == 'intl_') {
     outputFileName = '';
   } */
-  final languageCodes =
-      (result[ArbTranslatorArgumentParser.languageCodes] as List<String>).map((e) => e.trim()).toList();
+  var languageCodes = (result[ArbTranslatorArgumentParser.languageCodes] as List<String>).map((e) => e.trim()).toList();
+  final localeFilter = result[ArbTranslatorArgumentParser.localeFilter] as List<String>? ?? const [];
+  final sourceFileFilter = result[ArbTranslatorArgumentParser.sourceFileFilter] as List<String>? ?? const [];
+  final keyFilter = result[ArbTranslatorArgumentParser.keyFilter] as List<String>? ?? const [];
+  if (localeFilter.isNotEmpty) languageCodes = languageCodes.where(localeFilter.contains).toList(growable: false);
 
   String? cachePath = result[ArbTranslatorArgumentParser.cacheDirectory];
   cachePath ??= path.join('lib', 'l10n_cache');
@@ -114,7 +121,10 @@ void main(List<String> args) async {
   final credentialsFile = result[ArbTranslatorArgumentParser.credentialsFile] as String?;
   final quotaProjectId = result[ArbTranslatorArgumentParser.quotaProjectId] as String?;
   final openaiModel = result[ArbTranslatorArgumentParser.openaiModel] as String? ?? 'gpt-4o-mini';
-  final localLlmOptions = translationService == 'local_llm'
+  final manualOnly = (result[ArbTranslatorArgumentParser.manualOnly] as bool? ?? false) ||
+      (result[ArbTranslatorArgumentParser.offline] as bool? ?? false) ||
+      (result[ArbTranslatorArgumentParser.mergeReviewedOnly] as bool? ?? false);
+  final localLlmOptions = translationService == 'local_llm' && !manualOnly
       ? LocalLlmOptions.fromConfig(
           endpoint: result[ArbTranslatorArgumentParser.localLlmUrl] as String? ?? LocalLlmOptions.defaultEndpoint,
           model: result[ArbTranslatorArgumentParser.localLlmModel] as String,
@@ -122,6 +132,7 @@ void main(List<String> args) async {
           timeoutSeconds: ArbTranslatorArgumentParser.parseLocalLlmTimeoutSeconds(
             result[ArbTranslatorArgumentParser.localLlmTimeoutSeconds],
           ),
+          profile: result[ArbTranslatorArgumentParser.localLlmProfile] as String? ?? 'openai_chat_json',
         )
       : null;
   final translationContext = _readTranslationContext(
@@ -131,9 +142,47 @@ void main(List<String> args) async {
   final parallelTranslations = ArbTranslatorArgumentParser.parseParallelTranslations(
     result[ArbTranslatorArgumentParser.parallelTranslations],
   );
+  final reviewedTranslationsDir = result[ArbTranslatorArgumentParser.reviewedTranslationsDir] as String?;
 
   if (apiKey != null && File(apiKey).existsSync()) {
     apiKey = File(apiKey).readAsStringSync().trim();
+  }
+
+  if (result[ArbTranslatorArgumentParser.validateOnly] as bool? ?? false) {
+    final candidate = sourcePath == null
+        ? [File(sourceArb!)]
+        : Directory(sourcePath).listSync(recursive: true).whereType<File>().where((file) => file.path.endsWith('.arb'));
+    final issues = candidate.expand((file) => LocalizationValidator.validateArbFile(file));
+    for (final issue in issues) print(issue);
+    if (issues.isNotEmpty) exitCode = 2;
+    return;
+  }
+  if (result[ArbTranslatorArgumentParser.dryRunNetworkPlan] as bool? ?? false) {
+    print(
+        'Dry-run network plan: ${manualOnly ? 'zero provider requests (manual/offline mode)' : 'provider requests may be issued only for resources not covered by x-translations, reviewed overlays, or current provenance cache'}');
+    return;
+  }
+  if (result[ArbTranslatorArgumentParser.listStaleReviewed] as bool? ?? false) {
+    final files = sourcePath == null
+        ? [File(sourceArb!)]
+        : Directory(sourcePath).listSync(recursive: true).whereType<File>().where((file) => file.path.endsWith('.arb'));
+    for (final file in files) {
+      final document = ArbDocument.decode(file.readAsStringSync());
+      final resources = document.resources.values
+          .map((resource) => TranslationResource.fromArbResource(resource, sourceTopic: path.basename(file.path)));
+      for (final locale in languageCodes) {
+        for (final key in ReviewedOverlay.staleKeys(
+          rootDirectory: reviewedTranslationsDir,
+          locale: locale,
+          sourceFile: file.path,
+          resources: resources,
+          translationContext: translationContext,
+        )) {
+          print('$locale/${path.basename(file.path)}#$key');
+        }
+      }
+    }
+    return;
   }
 
   if (languageCodes.toSet().length != languageCodes.length) {
@@ -167,6 +216,10 @@ void main(List<String> args) async {
       translationContext: translationContext,
       localLlmOptions: localLlmOptions,
       parallelTranslations: parallelTranslations,
+      reviewedTranslationsDir: reviewedTranslationsDir,
+      manualOnly: manualOnly,
+      sourceFileFilters: sourceFileFilter.isEmpty ? null : sourceFileFilter.toSet(),
+      resourceKeyFilter: keyFilter.isEmpty ? null : keyFilter.toSet(),
     );
   } else if (sourceArb != null) {
     await SingleFileProcessor.processSingleFile(
@@ -191,6 +244,9 @@ void main(List<String> args) async {
       translationContext: translationContext,
       localLlmOptions: localLlmOptions,
       parallelTranslations: parallelTranslations,
+      reviewedTranslationsDir: reviewedTranslationsDir,
+      manualOnly: manualOnly,
+      resourceKeyFilter: keyFilter.isEmpty ? null : keyFilter.toSet(),
     );
 
     // Create l10n directory and merge files for single file processing

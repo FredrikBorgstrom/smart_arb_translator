@@ -1,12 +1,17 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
-import 'package:smart_arb_translator/src/arb_processor.dart';
+import 'package:http/http.dart' as http;
 import 'package:smart_arb_translator/src/dart_code_generator.dart';
+import 'package:smart_arb_translator/src/arb_processor.dart';
 import 'package:smart_arb_translator/src/file_operations.dart';
 import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/models/arb_resource.dart';
+import 'package:smart_arb_translator/src/models/google_resource_adapter.dart';
 import 'package:smart_arb_translator/src/models/local_llm_options.dart';
+import 'package:smart_arb_translator/src/models/translation_resource.dart';
+import 'package:smart_arb_translator/src/reviewed_overlay.dart';
 import 'package:smart_arb_translator/src/translation_service.dart';
 import 'package:smart_arb_translator/src/translation_statistics.dart';
 
@@ -106,6 +111,10 @@ class SingleFileProcessor {
     String? translationContext,
     LocalLlmOptions? localLlmOptions,
     int parallelTranslations = 1,
+    String? reviewedTranslationsDir,
+    bool manualOnly = false,
+    http.Client? client,
+    Set<String>? resourceKeyFilter,
   }) async {
     dartClassName ??= (l10nMethod == 'gen-l10n') ? 'AppLocalizations' : 'S';
     final arbFile = FileOperations.createFileRef(sourceArb);
@@ -113,7 +122,10 @@ class SingleFileProcessor {
 
     // Check for existing cached source file for change detection
     final sourceFileBaseName = path.basename(arbFile.path);
-    final cachedSourcePath = path.join(workingOutputDirectory, sourceFileBaseName);
+    final cachedSourcePath = path.join(
+      workingOutputDirectory,
+      sourceFileBaseName,
+    );
 
     ArbDocument? previousSourceDocument;
     if (File(cachedSourcePath).existsSync()) {
@@ -122,7 +134,9 @@ class SingleFileProcessor {
         final cachedContent = File(cachedSourcePath).readAsStringSync();
         previousSourceDocument = ArbDocument.decode(cachedContent);
       } catch (e) {
-        print('Warning: Could not parse existing cached source file: $cachedSourcePath');
+        print(
+          'Warning: Could not parse existing cached source file: $cachedSourcePath',
+        );
       }
     }
 
@@ -135,18 +149,24 @@ class SingleFileProcessor {
     final statistics = TranslationStatistics();
 
     final sourceFileName = path.basename(arbFile.path);
-    final sourceFileNameWithoutExt = path.basenameWithoutExtension(sourceFileName);
+    final sourceFileNameWithoutExt = path.basenameWithoutExtension(
+      sourceFileName,
+    );
     final sourceFileExt = path.extension(sourceFileName);
 
     final effectiveParallelism = parallelTranslations < 1 ? 1 : parallelTranslations;
     if (effectiveParallelism > 1) {
-      print('Per-language parallelism: $effectiveParallelism concurrent translation requests');
+      print(
+        'Per-language parallelism: $effectiveParallelism concurrent translation requests',
+      );
     }
 
     final translationLanguageCodes =
         languageCodes.where((languageCode) => !_isSameLocale(languageCode, dartMainLocale)).toList(growable: false);
     if (translationLanguageCodes.length != languageCodes.length) {
-      print('Protecting source locale "$dartMainLocale": skipping translation for matching language code(s).');
+      print(
+        'Protecting source locale "$dartMainLocale": skipping translation for matching language code(s).',
+      );
     }
 
     Future<void> runForLanguage(String languageCode) async {
@@ -170,10 +190,17 @@ class SingleFileProcessor {
         openaiModel: openaiModel,
         translationContext: translationContext,
         localLlmOptions: localLlmOptions,
+        reviewedTranslationsDir: reviewedTranslationsDir,
+        manualOnly: manualOnly,
+        client: client,
+        resourceKeyFilter: resourceKeyFilter,
       );
     }
 
-    for (final chunk in _chunked(translationLanguageCodes, effectiveParallelism)) {
+    for (final chunk in _chunked(
+      translationLanguageCodes,
+      effectiveParallelism,
+    )) {
       await Future.wait(chunk.map(runForLanguage));
     }
 
@@ -195,7 +222,10 @@ class SingleFileProcessor {
         if (_isSameLocale(languageCode, dartMainLocale)) {
           continue;
         }
-        final sourceFile = path.join(workingOutputDirectory, '${sourceFileNameWithoutExt}_$languageCode$sourceFileExt');
+        final sourceFile = path.join(
+          workingOutputDirectory,
+          '${sourceFileNameWithoutExt}_$languageCode$sourceFileExt',
+        );
         final targetFile = path.join(tempL10nDir, 'intl_$languageCode.arb');
 
         if (File(sourceFile).existsSync()) {
@@ -290,6 +320,10 @@ class SingleFileProcessor {
     String? translationContext,
     LocalLlmOptions? localLlmOptions,
     int parallelTranslations = 1,
+    String? reviewedTranslationsDir,
+    bool manualOnly = false,
+    http.Client? client,
+    Set<String>? resourceKeyFilter,
   }) async {
     final sourceArbFile = File(sourceArbPath);
     final sourceContent = sourceArbFile.readAsStringSync();
@@ -305,82 +339,22 @@ class SingleFileProcessor {
         final existingContent = outputFile.readAsStringSync();
         existingTranslation = ArbDocument.decode(existingContent);
       } catch (e) {
-        print('Warning: Could not parse existing translation file: $outputFilePath');
+        print(
+          'Warning: Could not parse existing translation file: $outputFilePath',
+        );
       }
     }
 
-    // Determine which keys need translation
-    final keysToTranslate = <String, ArbResource>{};
-
-    for (final entry in sourceDocument.resources.entries) {
-      final key = entry.key;
-      final resource = entry.value;
-
-      // Check if this key needs translation
-      bool needsTranslation = false;
-
-      if (existingTranslation == null || !existingTranslation.resources.containsKey(key)) {
-        // New key - needs translation
-        needsTranslation = true;
-        print('New key found: $key');
-      } else if (previousSourceDocument != null && previousSourceDocument.resources.containsKey(key)) {
-        // Check if the source text has changed compared to the previous version
-        final previousResource = previousSourceDocument.resources[key]!;
-        if (resource.text != previousResource.text) {
-          needsTranslation = true;
-          print('Changed key found: $key (text was: "${previousResource.text}", now: "${resource.text}")');
-        } else if (!ArbProcessor.areAttributesEqual(resource.attributes, previousResource.attributes)) {
-          // Check if attributes have changed
-          needsTranslation = true;
-          print('Changed key found: $key (attributes changed)');
-        }
-      } else if (previousSourceDocument != null && !previousSourceDocument.resources.containsKey(key)) {
-        // Key exists in current source but not in previous source - it's new
-        needsTranslation = true;
-        print('New key found: $key');
-      } else if (previousSourceDocument == null) {
-        // No previous source file to compare with - translate everything
-        needsTranslation = true;
-        print('No previous source file - translating key: $key');
-      }
-
-      if (needsTranslation) {
-        keysToTranslate[key] = resource;
-        // Track translated content
-        statistics?.addTranslated(resource.text);
-      } else {
-        // Track cached content (keys that were skipped)
-        statistics?.addCached(resource.text);
-      }
-    }
-
-    if (keysToTranslate.isEmpty) {
-      print('No changes detected for ${path.basename(sourceArbPath)} - skipping translation');
-      return;
-    }
-
-    print('Translating ${keysToTranslate.length} changed/new keys for ${path.basename(sourceArbPath)}');
-
-    // Create a temporary document with only the keys that need translation
-    final tempDocument = ArbDocument.empty(
-      locale: sourceDocument.locale,
-      appName: sourceDocument.appName,
-      lastModified: sourceDocument.lastModified,
-      resources: keysToTranslate,
-    );
-
-    final actionLists = ArbProcessor.createActionLists(tempDocument);
     final effectiveParallelism = parallelTranslations < 1 ? 1 : parallelTranslations;
 
     Future<void> translateLanguage(String languageCode) async {
       print('• Processing changes for $languageCode');
-      final translatedDocument = await _translateLanguageForFile(
+      final translated = await _translateLanguageForFile(
         languageCode: languageCode,
-        actionLists: actionLists,
-        keysToTranslate: keysToTranslate,
         existingTranslation: existingTranslation,
         sourceDocument: sourceDocument,
-        tempDocument: tempDocument,
+        sourceTopic: path.basename(sourceArbPath),
+        provenanceFile: File('$outputFilePath.provenance.json'),
         apiKey: apiKey,
         translationService: translationService,
         projectId: projectId,
@@ -390,9 +364,14 @@ class SingleFileProcessor {
         openaiModel: openaiModel,
         translationContext: translationContext,
         localLlmOptions: localLlmOptions,
+        reviewedTranslationsDir: reviewedTranslationsDir,
+        manualOnly: manualOnly,
+        client: client,
+        resourceKeyFilter: resourceKeyFilter,
       );
       final file = await File(outputFilePath).create(recursive: true);
-      await file.writeAsString(translatedDocument.encode());
+      await file.writeAsString(translated.document.encode());
+      await translated.writeProvenance();
     }
 
     for (final chunk in _chunked(languageCodes, effectiveParallelism)) {
@@ -400,20 +379,12 @@ class SingleFileProcessor {
     }
   }
 
-  /// Builds the translated [ArbDocument] for a single [languageCode] by issuing
-  /// the per-action-list translation requests and merging results back into the
-  /// existing per-language document (or a fresh one when none exists).
-  ///
-  /// The function is intentionally side-effect-free aside from the underlying
-  /// translation HTTP calls, which means multiple languages can run it in
-  /// parallel without sharing mutable state.
-  static Future<ArbDocument> _translateLanguageForFile({
+  static Future<_TranslatedFileResult> _translateLanguageForFile({
     required String languageCode,
-    required List<List<Action>> actionLists,
-    required Map<String, ArbResource> keysToTranslate,
     required ArbDocument? existingTranslation,
     required ArbDocument sourceDocument,
-    required ArbDocument tempDocument,
+    required String sourceTopic,
+    required File provenanceFile,
     required String apiKey,
     required String translationService,
     required String? projectId,
@@ -423,14 +394,87 @@ class SingleFileProcessor {
     required String openaiModel,
     required String? translationContext,
     required LocalLlmOptions? localLlmOptions,
+    required String? reviewedTranslationsDir,
+    required bool manualOnly,
+    required http.Client? client,
+    required Set<String>? resourceKeyFilter,
   }) async {
-    var newArbDocument = existingTranslation?.copyWith(locale: languageCode) ??
-        sourceDocument.copyWith(locale: languageCode, resources: {});
-
-    if (actionLists.isNotEmpty) {
-      final futuresList = actionLists.map((list) {
-        return TranslationService.translateTexts(
-          translateList: list.map((action) => action.text).toList(),
+    final resources = sourceDocument.resources.values
+        .where((resource) => resourceKeyFilter == null || resourceKeyFilter.contains(resource.id))
+        .map(
+          (resource) => TranslationResource.fromArbResource(
+            resource,
+            sourceTopic: sourceTopic,
+          ),
+        )
+        .toList(growable: false);
+    final model = translationService == 'local_llm' ? (localLlmOptions?.model ?? '') : openaiModel;
+    final endpointClass = translationService == 'local_llm'
+        ? '${localLlmOptions?.endpoint.scheme}://${localLlmOptions?.endpoint.host}'
+        : translationService == 'openai'
+            ? 'https://api.openai.com'
+            : 'google-translation-api';
+    final reviewed = ReviewedOverlay.load(
+      rootDirectory: reviewedTranslationsDir,
+      locale: languageCode,
+      sourceFile: sourceTopic,
+      resources: resources,
+      translationContext: translationContext,
+    );
+    final previousProvenance = _readProvenance(provenanceFile);
+    final resolved = <String, String>{};
+    final providerResources = <TranslationResource>[];
+    final missing = <MissingManualCoverage>[];
+    final nextProvenance = <String, dynamic>{...previousProvenance};
+    for (final resource in resources) {
+      final sourceFingerprint = TranslationFingerprint.source(resource);
+      final contextFingerprint = TranslationFingerprint.cacheContext(
+        resource,
+        translationContext: translationContext,
+        provider: translationService,
+        endpointClass: endpointClass,
+        model: model,
+      );
+      final override = sourceDocument.resources[resource.id]!.attributes?.xTranslations?[languageCode];
+      if (override is String && override.trim().isNotEmpty) {
+        resolved[resource.id] = override;
+      } else if (reviewed.translations.containsKey(resource.id)) {
+        resolved[resource.id] = reviewed.translations[resource.id]!;
+      } else {
+        final record = previousProvenance[resource.id];
+        final cached = existingTranslation?.resources[resource.id]?.text;
+        if (cached != null &&
+            record is Map<String, dynamic> &&
+            record['sourceFingerprint'] == sourceFingerprint &&
+            record['contextFingerprint'] == contextFingerprint) {
+          resolved[resource.id] = cached;
+        } else if (manualOnly) {
+          missing.add(
+            MissingManualCoverage(languageCode, sourceTopic, resource.id),
+          );
+        } else {
+          providerResources.add(resource);
+        }
+      }
+      nextProvenance[resource.id] = <String, dynamic>{
+        'sourceFingerprint': sourceFingerprint,
+        'contextFingerprint': contextFingerprint,
+        'provider': translationService,
+        'endpointClass': endpointClass,
+        'model': model,
+        'promptVersion': TranslationFingerprint.algorithmVersion,
+        'translationContext': translationContext ?? '',
+        'sourceTopic': sourceTopic,
+        'placeholderMetadata': resource.placeholders,
+        'glossary': resource.glossary,
+        'algorithmVersion': TranslationFingerprint.algorithmVersion,
+      };
+    }
+    if (missing.isNotEmpty) throw ManualCoverageException(missing);
+    if (providerResources.isNotEmpty) {
+      if (translationService == 'openai' || translationService == 'local_llm') {
+        final results = await TranslationService.translateResources(
+          resources: providerResources,
           parameters: <String, dynamic>{
             'target': languageCode,
             'key': apiKey,
@@ -438,53 +482,102 @@ class SingleFileProcessor {
             'translation_context': translationContext,
           },
           translationService: translationService,
-          projectId: projectId,
-          authMode: authMode,
-          credentialsFile: credentialsFile,
-          quotaProjectId: quotaProjectId,
           localLlmOptions: localLlmOptions,
+          client: client,
         );
-      }).toList();
-
-      final translateResults = await Future.wait(futuresList);
-
-      for (var i = translateResults.length - 1; i >= 0; i--) {
-        final translateList = translateResults[i];
-        final actionList = actionLists[i];
-
-        for (var j = translateList.length - 1; j >= 0; j--) {
-          final action = actionList[j];
-          final translation = translateList[j];
-          final sanitizedTranslation = TranslationService.sanitizeTranslation(translation);
-
-          final originalResource = keysToTranslate[action.resourceId]!;
-          final translatedResource = action.updateFunction(
-            sanitizedTranslation,
-            originalResource.text,
+        for (final result in results) {
+          resolved[result.id] = TranslationService.sanitizeTranslation(
+            result.translation,
           );
-
-          newArbDocument = newArbDocument.copyWith(
-            resources: newArbDocument.resources..[action.resourceId] = translatedResource,
+        }
+      } else {
+        // Google LLM supports opaque request labels. Only resources with no
+        // ARB interpolation/ICU syntax take that whole-resource path; complex
+        // values retain the legacy action projection below.
+        var legacyGoogleResources = providerResources;
+        if (translationService == 'google_llm') {
+          final structuredGoogleResources = providerResources
+              .where((resource) => GoogleResourceAdapter(resource).supportsWholeResourceLlm)
+              .toList(growable: false);
+          if (structuredGoogleResources.isNotEmpty) {
+            final results = await TranslationService.translateResources(
+              resources: structuredGoogleResources,
+              parameters: <String, dynamic>{'target': languageCode, 'key': apiKey},
+              translationService: translationService,
+              projectId: projectId,
+              authMode: authMode,
+              credentialsFile: credentialsFile,
+              quotaProjectId: quotaProjectId,
+              client: client,
+            );
+            for (final result in results) {
+              resolved[result.id] = TranslationService.sanitizeTranslation(result.translation);
+            }
+            legacyGoogleResources = providerResources
+                .where((resource) => !GoogleResourceAdapter(resource).supportsWholeResourceLlm)
+                .toList(growable: false);
+          }
+        }
+        if (legacyGoogleResources.isEmpty) {
+          final output = <String, ArbResource>{
+            for (final entry in sourceDocument.resources.entries)
+              entry.key: entry.value.copyWith(
+                text: resolved[entry.key] ?? existingTranslation?.resources[entry.key]?.text ?? entry.value.text,
+              ),
+          };
+          return _TranslatedFileResult(
+            sourceDocument.copyWith(locale: languageCode, resources: output),
+            provenanceFile,
+            nextProvenance,
           );
+        }
+        // Google retains the legacy action projection, preserving prior ICU and
+        // placeholder behavior while OpenAI/local use whole resources above.
+        final providerDocument = ArbDocument.empty(
+          locale: sourceDocument.locale,
+          appName: sourceDocument.appName,
+          lastModified: sourceDocument.lastModified,
+          resources: {
+            for (final resource in legacyGoogleResources) resource.id: sourceDocument.resources[resource.id]!,
+          },
+        );
+        final translatedResources = <String, ArbResource>{...providerDocument.resources};
+        for (final actions in ArbProcessor.createActionLists(providerDocument)) {
+          final values = await TranslationService.translateTexts(
+            translateList: actions.map((action) => action.text).toList(growable: false),
+            parameters: <String, dynamic>{'target': languageCode, 'key': apiKey},
+            translationService: translationService,
+            projectId: projectId,
+            authMode: authMode,
+            credentialsFile: credentialsFile,
+            quotaProjectId: quotaProjectId,
+            client: client,
+          );
+          for (var index = values.length - 1; index >= 0; index--) {
+            final action = actions[index];
+            final current = translatedResources[action.resourceId]!;
+            translatedResources[action.resourceId] = action.updateFunction(
+              TranslationService.sanitizeTranslation(values[index]),
+              current.text,
+            );
+          }
+        }
+        for (final entry in translatedResources.entries) {
+          resolved[entry.key] = entry.value.text;
         }
       }
     }
-
-    newArbDocument = TranslationService.applyManualTranslationsToDocument(
-      translatedDocument: newArbDocument,
-      languageCode: languageCode,
-      sourceDocument: tempDocument,
+    final output = <String, ArbResource>{
+      for (final entry in sourceDocument.resources.entries)
+        entry.key: entry.value.copyWith(
+          text: resolved[entry.key] ?? existingTranslation?.resources[entry.key]?.text ?? entry.value.text,
+        ),
+    };
+    return _TranslatedFileResult(
+      sourceDocument.copyWith(locale: languageCode, resources: output),
+      provenanceFile,
+      nextProvenance,
     );
-
-    for (final entry in sourceDocument.resources.entries) {
-      if (!newArbDocument.resources.containsKey(entry.key)) {
-        newArbDocument = newArbDocument.copyWith(
-          resources: newArbDocument.resources..[entry.key] = entry.value.copyWith(),
-        );
-      }
-    }
-
-    return newArbDocument;
   }
 
   /// Constructs the per-language output filename used by [processSingleFile].
@@ -515,5 +608,34 @@ class SingleFileProcessor {
 
   static bool _isSameLocale(String left, String right) {
     return left.trim().replaceAll('-', '_').toLowerCase() == right.trim().replaceAll('-', '_').toLowerCase();
+  }
+}
+
+Map<String, dynamic> _readProvenance(File file) {
+  if (!file.existsSync()) return <String, dynamic>{};
+  try {
+    final decoded = jsonDecode(file.readAsStringSync());
+    return decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
+  } catch (_) {
+    return <String, dynamic>{};
+  }
+}
+
+class _TranslatedFileResult {
+  final ArbDocument document;
+  final File provenanceFile;
+  final Map<String, dynamic> provenance;
+
+  const _TranslatedFileResult(
+    this.document,
+    this.provenanceFile,
+    this.provenance,
+  );
+
+  Future<void> writeProvenance() async {
+    await provenanceFile.parent.create(recursive: true);
+    await provenanceFile.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(provenance),
+    );
   }
 }

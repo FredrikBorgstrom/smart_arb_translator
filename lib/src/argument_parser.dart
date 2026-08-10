@@ -48,9 +48,20 @@ class ArbTranslatorArgumentParser {
   static const _localLlmModel = 'local_llm_model';
   static const _localLlmJsonMode = 'local_llm_json_mode';
   static const _localLlmTimeoutSeconds = 'local_llm_timeout_seconds';
+  static const _localLlmProfile = 'local_llm_profile';
   static const _translationContext = 'translation_context';
   static const _translationContextFile = 'translation_context_file';
   static const _parallelTranslations = 'parallel_translations';
+  static const _reviewedTranslationsDir = 'reviewed_translations_dir';
+  static const _manualOnly = 'manual_only';
+  static const _offline = 'offline';
+  static const _validateOnly = 'validate_only';
+  static const _mergeReviewedOnly = 'merge_reviewed_only';
+  static const _listStaleReviewed = 'list_stale_reviewed';
+  static const _dryRunNetworkPlan = 'dry_run_network_plan';
+  static const _localeFilter = 'locale';
+  static const _sourceFileFilter = 'source_file';
+  static const _keyFilter = 'key';
 
   /// Default value for [_parallelTranslations] when the option is not provided.
   ///
@@ -201,6 +212,12 @@ class ArbTranslatorArgumentParser {
         defaultsTo: LocalLlmOptions.defaultTimeoutSeconds.toString(),
       )
       ..addOption(
+        _localLlmProfile,
+        help: 'local model protocol: openai_chat_json or translategemma',
+        allowed: ['openai_chat_json', 'translategemma'],
+        defaultsTo: 'openai_chat_json',
+      )
+      ..addOption(
         _translationContext,
         help: 'optional context/instructions for LLM translations (google_llm, openai, or local_llm)',
       )
@@ -215,7 +232,24 @@ class ArbTranslatorArgumentParser {
             'cost of more concurrent requests against the translation provider. Defaults to 1 '
             '(sequential, original behavior).',
         defaultsTo: defaultParallelTranslations.toString(),
-      );
+      )
+      ..addOption(
+        _reviewedTranslationsDir,
+        help: 'directory containing per-locale reviewed ARB overlays and review ledgers',
+      )
+      ..addFlag(
+        _manualOnly,
+        help: 'forbid translation-service calls and report uncovered keys',
+        defaultsTo: false,
+      )
+      ..addFlag(_offline, help: 'alias for manual_only', defaultsTo: false)
+      ..addFlag(_validateOnly, help: 'validate ARB inputs and exit', defaultsTo: false)
+      ..addFlag(_mergeReviewedOnly, help: 'generate only from reviewed/manual/cache coverage', defaultsTo: false)
+      ..addFlag(_listStaleReviewed, help: 'list reviewed entries whose fingerprints are stale', defaultsTo: false)
+      ..addFlag(_dryRunNetworkPlan, help: 'report the provider/network plan and exit', defaultsTo: false)
+      ..addMultiOption(_localeFilter, help: 'limit processing to locale(s)')
+      ..addMultiOption(_sourceFileFilter, help: 'limit directory processing to source feature file(s)')
+      ..addMultiOption(_keyFilter, help: 'limit processing to resource key(s)');
 
     return parser;
   }
@@ -295,7 +329,9 @@ class ArbTranslatorArgumentParser {
 
     if (cleanupMode) {
       if (!_wasOptionExplicitlyProvided(normalizedArgs, _languageCodes)) {
-        mergedResult = _updateMergedResult(mergedResult, {_languageCodes: null});
+        mergedResult = _updateMergedResult(mergedResult, {
+          _languageCodes: null,
+        });
       }
       return mergedResult;
     }
@@ -308,7 +344,9 @@ class ArbTranslatorArgumentParser {
     if (!hasSourceArb && !hasSourceDir) {
       if (autoApprove) {
         // Default to source_dir with lib/l10n_source when auto-approve is enabled
-        print('🎯 No source configuration found, defaulting to source_dir: lib/l10n_source (auto-approve enabled)');
+        print(
+          '🎯 No source configuration found, defaulting to source_dir: lib/l10n_source (auto-approve enabled)',
+        );
         mergedResult = _updateMergedResult(mergedResult, {
           _sourceDir: 'lib/l10n_source',
           _dartMainLocale: 'en',
@@ -327,7 +365,8 @@ class ArbTranslatorArgumentParser {
     if (!finalHasSourceArb && !finalHasSourceDir) {
       _setBrightRed();
       stderr.write(
-          'Either --source_arb or --source_dir is required (can be set in pubspec.yaml under smart_arb_translator section).');
+        'Either --source_arb or --source_dir is required (can be set in pubspec.yaml under smart_arb_translator section).',
+      );
       exit(2);
     }
 
@@ -342,29 +381,45 @@ class ArbTranslatorArgumentParser {
     final localLlmTimeoutSeconds = parseLocalLlmTimeoutSeconds(
       mergedResult[_localLlmTimeoutSeconds],
     );
+    final localLlmProfile = mergedResult[_localLlmProfile] as String? ?? 'openai_chat_json';
     final translationContextFile = (mergedResult[_translationContextFile] as String?)?.trim();
 
-    final needsApiKey = translationService == 'google_basic' ||
-        translationService == 'google_nmt' ||
-        translationService == 'openai' ||
-        (translationService == 'google_llm' && authMode == 'api_key');
+    // Inspection-only commands must never require credentials or a configured
+    // provider. They intentionally do not make network calls.
+    final inspectionOnly = (mergedResult[_validateOnly] as bool? ?? false) ||
+        (mergedResult[_listStaleReviewed] as bool? ?? false) ||
+        (mergedResult[_dryRunNetworkPlan] as bool? ?? false);
+    final manualOnly = inspectionOnly ||
+        (mergedResult[_manualOnly] as bool? ?? false) ||
+        (mergedResult[_offline] as bool? ?? false) ||
+        (mergedResult[_mergeReviewedOnly] as bool? ?? false);
+    final needsApiKey = !manualOnly &&
+        (translationService == 'google_basic' ||
+            translationService == 'google_nmt' ||
+            translationService == 'openai' ||
+            (translationService == 'google_llm' && authMode == 'api_key'));
     if (needsApiKey && (apiKey == null || apiKey.isEmpty)) {
       _setBrightRed();
-      stderr.write('--api_key is required (can be set in pubspec.yaml under smart_arb_translator section)');
+      stderr.write(
+        '--api_key is required (can be set in pubspec.yaml under smart_arb_translator section)',
+      );
       exit(2);
     }
 
     if (translationService == 'openai' && authMode != 'api_key') {
       _setBrightRed();
-      stderr.write('--auth_mode must be "api_key" when --translation_service is "openai".');
+      stderr.write(
+        '--auth_mode must be "api_key" when --translation_service is "openai".',
+      );
       exit(2);
     }
 
-    if (translationService == 'google_llm') {
+    if (translationService == 'google_llm' && !manualOnly) {
       if (projectId == null || projectId.isEmpty) {
         _setBrightRed();
         stderr.write(
-            '--project_id is required when --translation_service is "google_llm" (can be set in pubspec.yaml under smart_arb_translator section)');
+          '--project_id is required when --translation_service is "google_llm" (can be set in pubspec.yaml under smart_arb_translator section)',
+        );
         exit(2);
       }
 
@@ -375,13 +430,14 @@ class ArbTranslatorArgumentParser {
         if (!hasCredentials) {
           _setBrightRed();
           stderr.write(
-              '--credentials_file is required when --auth_mode is "service_account" (or set GOOGLE_APPLICATION_CREDENTIALS).');
+            '--credentials_file is required when --auth_mode is "service_account" (or set GOOGLE_APPLICATION_CREDENTIALS).',
+          );
           exit(2);
         }
       }
     }
 
-    if (translationService == 'local_llm') {
+    if (translationService == 'local_llm' && !manualOnly) {
       if (localLlmModel == null || localLlmModel.isEmpty) {
         _setBrightRed();
         stderr.write(
@@ -395,6 +451,7 @@ class ArbTranslatorArgumentParser {
           model: localLlmModel,
           jsonMode: localLlmJsonMode,
           timeoutSeconds: localLlmTimeoutSeconds,
+          profile: localLlmProfile,
         );
       } on ArgumentError catch (error) {
         _setBrightRed();
@@ -407,7 +464,9 @@ class ArbTranslatorArgumentParser {
       final contextFile = File(translationContextFile);
       if (!contextFile.existsSync()) {
         _setBrightRed();
-        stderr.write('--translation_context_file does not exist: $translationContextFile');
+        stderr.write(
+          '--translation_context_file does not exist: $translationContextFile',
+        );
         exit(2);
       }
     }
@@ -426,7 +485,10 @@ class ArbTranslatorArgumentParser {
   /// - [pubspecConfig]: Configuration loaded from pubspec.yaml
   ///
   /// Returns merged [ArgResults] with CLI args taking precedence.
-  static ArgResults _mergeWithPubspecConfig(ArgResults cliResult, PubspecConfig? pubspecConfig) {
+  static ArgResults _mergeWithPubspecConfig(
+    ArgResults cliResult,
+    PubspecConfig? pubspecConfig,
+  ) {
     if (pubspecConfig == null || !pubspecConfig.hasAnyConfig) {
       return cliResult;
     }
@@ -467,6 +529,7 @@ class ArbTranslatorArgumentParser {
     if (pubspecConfig.localLlmTimeoutSeconds != null) {
       mergedOptions[_localLlmTimeoutSeconds] = pubspecConfig.localLlmTimeoutSeconds;
     }
+    if (pubspecConfig.localLlmProfile != null) mergedOptions[_localLlmProfile] = pubspecConfig.localLlmProfile;
     if (pubspecConfig.translationContext != null) {
       mergedOptions[_translationContext] = pubspecConfig.translationContext;
     }
@@ -476,6 +539,10 @@ class ArbTranslatorArgumentParser {
     if (pubspecConfig.parallelTranslations != null) {
       mergedOptions[_parallelTranslations] = pubspecConfig.parallelTranslations;
     }
+    if (pubspecConfig.reviewedTranslationsDir != null) {
+      mergedOptions[_reviewedTranslationsDir] = pubspecConfig.reviewedTranslationsDir;
+    }
+    if (pubspecConfig.manualOnly != null) mergedOptions[_manualOnly] = pubspecConfig.manualOnly;
 
     // Override with CLI arguments (CLI takes precedence)
     for (final option in cliResult.options) {
@@ -498,7 +565,9 @@ class ArbTranslatorArgumentParser {
     mergedOptions[_localLlmUrl] ??= LocalLlmOptions.defaultEndpoint;
     mergedOptions[_localLlmJsonMode] ??= true;
     mergedOptions[_localLlmTimeoutSeconds] ??= LocalLlmOptions.defaultTimeoutSeconds.toString();
+    mergedOptions[_localLlmProfile] ??= 'openai_chat_json';
     mergedOptions[_parallelTranslations] ??= defaultParallelTranslations.toString();
+    mergedOptions[_manualOnly] ??= false;
 
     return _MergedArgResults(mergedOptions, cliResult);
   }
@@ -531,7 +600,9 @@ class ArbTranslatorArgumentParser {
 
     // Ask for source path
     if (sourceType == 'directory') {
-      print('\nEnter the directory path containing your ARB files (default: lib/l10n_source): ');
+      print(
+        '\nEnter the directory path containing your ARB files (default: lib/l10n_source): ',
+      );
       final input = stdin.readLineSync()?.trim() ?? '';
       config[_sourceDir] = input.isEmpty ? 'lib/l10n_source' : input;
     } else {
@@ -561,7 +632,9 @@ class ArbTranslatorArgumentParser {
     print('4. OpenAI');
     print('   - Uses OpenAI chat models with optional translation context');
     print('5. Local LLM');
-    print('   - Uses a local OpenAI-compatible server such as Ollama or LM Studio');
+    print(
+      '   - Uses a local OpenAI-compatible server such as Ollama or LM Studio',
+    );
     print('');
     print('Enter your choice (1, 2, 3, 4, or 5) [default: 1]: ');
 
@@ -582,7 +655,9 @@ class ArbTranslatorArgumentParser {
 
     // Ask for LLM-specific auth settings if LLM is selected
     if (service == 'google_llm') {
-      print('\nEnter your Google Cloud Project ID (required for LLM service): ');
+      print(
+        '\nEnter your Google Cloud Project ID (required for LLM service): ',
+      );
       final projectIdInput = stdin.readLineSync()?.trim() ?? '';
       if (projectIdInput.isEmpty) {
         _setBrightRed();
@@ -593,11 +668,15 @@ class ArbTranslatorArgumentParser {
 
       print('\nChoose authentication mode for Google LLM (v3):');
       print('1. ADC (recommended)');
-      print('   - Uses gcloud application-default credentials or GOOGLE_APPLICATION_CREDENTIALS');
+      print(
+        '   - Uses gcloud application-default credentials or GOOGLE_APPLICATION_CREDENTIALS',
+      );
       print('2. Service account key file');
       print('   - Uses explicit JSON key path');
       print('3. API key (legacy)');
-      print('   - Kept for backward compatibility; Google v3 generally expects OAuth');
+      print(
+        '   - Kept for backward compatibility; Google v3 generally expects OAuth',
+      );
       print('');
       print('Enter your choice (1, 2, or 3) [default: 1]: ');
 
@@ -671,19 +750,26 @@ class ArbTranslatorArgumentParser {
     }
 
     // Ask for cache directory
-    print('\nEnter the cache directory for translations (default: lib/l10n_cache): ');
+    print(
+      '\nEnter the cache directory for translations (default: lib/l10n_cache): ',
+    );
     final cacheInput = stdin.readLineSync()?.trim() ?? '';
     config[_cacheDirectory] = cacheInput.isEmpty ? 'lib/l10n_cache' : cacheInput;
 
     // Ask for output directory
-    print('\nEnter the output directory for translated ARB files (default: lib/l10n): ');
+    print(
+      '\nEnter the output directory for translated ARB files (default: lib/l10n): ',
+    );
     final outputInput = stdin.readLineSync()?.trim() ?? '';
     config[_l10nDirectory] = outputInput.isEmpty ? 'lib/l10n' : outputInput;
 
     // Ask for target languages
-    print('\nEnter the language codes you want to translate to (comma-separated, e.g., es,fr,de,ja): ');
     print(
-        'Common language codes: es (Spanish), fr (French), de (German), ja (Japanese), zh (Chinese), pt (Portuguese), it (Italian), ru (Russian), ar (Arabic), hi (Hindi)');
+      '\nEnter the language codes you want to translate to (comma-separated, e.g., es,fr,de,ja): ',
+    );
+    print(
+      'Common language codes: es (Spanish), fr (French), de (German), ja (Japanese), zh (Chinese), pt (Portuguese), it (Italian), ru (Russian), ar (Arabic), hi (Hindi)',
+    );
     final languagesInput = stdin.readLineSync()?.trim() ?? '';
     if (languagesInput.isEmpty) {
       _setBrightRed();
@@ -704,7 +790,9 @@ class ArbTranslatorArgumentParser {
     config[_languageCodes] = languageCodes;
 
     if (service == 'google_llm' || service == 'openai' || service == 'local_llm') {
-      print('\nOptional: add translation context/style guide (leave blank to skip): ');
+      print(
+        '\nOptional: add translation context/style guide (leave blank to skip): ',
+      );
       final contextInput = stdin.readLineSync() ?? '';
       if (contextInput.trim().isNotEmpty) {
         config[_translationContext] = contextInput.trim();
@@ -757,7 +845,9 @@ class ArbTranslatorArgumentParser {
   }
 
   /// Saves the auto-configuration to pubspec.yaml
-  static Future<void> _saveAutoConfiguration(Map<String, dynamic> config) async {
+  static Future<void> _saveAutoConfiguration(
+    Map<String, dynamic> config,
+  ) async {
     final pubspecFile = File('pubspec.yaml');
     if (!pubspecFile.existsSync()) {
       print('⚠️  Warning: pubspec.yaml not found, configuration not saved.');
@@ -789,9 +879,13 @@ class ArbTranslatorArgumentParser {
           if (value is List) {
             // Handle list values (like language_codes)
             final listItems = value.map((item) => '"$item"').join(', ');
-            modifiedLines.add('${' ' * (smartArbIndent + 2)}$configKey: [$listItems]');
+            modifiedLines.add(
+              '${' ' * (smartArbIndent + 2)}$configKey: [$listItems]',
+            );
           } else {
-            modifiedLines.add('${' ' * (smartArbIndent + 2)}$configKey: $value');
+            modifiedLines.add(
+              '${' ' * (smartArbIndent + 2)}$configKey: $value',
+            );
           }
         });
         continue;
@@ -860,9 +954,12 @@ class ArbTranslatorArgumentParser {
       'local_llm_model:',
       'local_llm_json_mode:',
       'local_llm_timeout_seconds:',
+      'local_llm_profile:',
       'translation_context:',
       'translation_context_file:',
-      'parallel_translations:'
+      'parallel_translations:',
+      'reviewed_translations_dir:',
+      'manual_only:',
     ];
     return configKeys.any((key) => trimmedLine.startsWith(key));
   }
@@ -884,7 +981,10 @@ class ArbTranslatorArgumentParser {
   }
 
   /// Updates merged result with new configuration
-  static ArgResults _updateMergedResult(ArgResults originalResult, Map<String, dynamic> updates) {
+  static ArgResults _updateMergedResult(
+    ArgResults originalResult,
+    Map<String, dynamic> updates,
+  ) {
     final Map<String, dynamic> mergedOptions = {};
 
     // Copy existing options
@@ -909,17 +1009,25 @@ class ArbTranslatorArgumentParser {
 
   static List<String> _normalizeFlagAliases(List<String> args) {
     return args
-        .map((arg) => switch (arg) {
-              '--clean_corrupted_cache' => '--clean-corrupted-cache',
-              '--dry_run' => '--dry-run',
-              _ => arg,
-            })
+        .map(
+          (arg) => switch (arg) {
+            '--clean_corrupted_cache' => '--clean-corrupted-cache',
+            '--dry_run' => '--dry-run',
+            '--manual' => '--manual_only',
+            _ => arg,
+          },
+        )
         .toList();
   }
 
-  static bool _wasOptionExplicitlyProvided(List<String> args, String optionName) {
+  static bool _wasOptionExplicitlyProvided(
+    List<String> args,
+    String optionName,
+  ) {
     final prefixedName = '--$optionName';
-    return args.any((arg) => arg == prefixedName || arg.startsWith('$prefixedName='));
+    return args.any(
+      (arg) => arg == prefixedName || arg.startsWith('$prefixedName='),
+    );
   }
 
   // Getters for argument names
@@ -951,9 +1059,20 @@ class ArbTranslatorArgumentParser {
   static String get localLlmModel => _localLlmModel;
   static String get localLlmJsonMode => _localLlmJsonMode;
   static String get localLlmTimeoutSeconds => _localLlmTimeoutSeconds;
+  static String get localLlmProfile => _localLlmProfile;
   static String get translationContext => _translationContext;
   static String get translationContextFile => _translationContextFile;
   static String get parallelTranslations => _parallelTranslations;
+  static String get reviewedTranslationsDir => _reviewedTranslationsDir;
+  static String get manualOnly => _manualOnly;
+  static String get offline => _offline;
+  static String get validateOnly => _validateOnly;
+  static String get mergeReviewedOnly => _mergeReviewedOnly;
+  static String get listStaleReviewed => _listStaleReviewed;
+  static String get dryRunNetworkPlan => _dryRunNetworkPlan;
+  static String get localeFilter => _localeFilter;
+  static String get sourceFileFilter => _sourceFileFilter;
+  static String get keyFilter => _keyFilter;
 }
 
 /// Custom ArgResults implementation that merges CLI args with pubspec.yaml config

@@ -58,6 +58,9 @@ smart_arb_translator:
   # local_llm_model: qwen3.5:27b
   # local_llm_json_mode: true
   # local_llm_timeout_seconds: 600
+  # local_llm_profile: openai_chat_json     # or translategemma (translation-only, one resource/request)
+  # reviewed_translations_dir: lib/l10n_reviewed
+  # manual_only: true                       # offline: fail rather than call a translation provider
 
   # Automation
   auto_approve: false                      # Auto-approve pubspec.yaml modifications

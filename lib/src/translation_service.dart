@@ -6,7 +6,9 @@ import 'package:html_unescape/html_unescape.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/models/arb_resource.dart';
+import 'package:smart_arb_translator/src/models/google_resource_adapter.dart';
 import 'package:smart_arb_translator/src/models/local_llm_options.dart';
+import 'package:smart_arb_translator/src/models/translation_resource.dart';
 import 'package:smart_arb_translator/src/utils.dart';
 
 /// Service class for translation through Google, OpenAI, or local LLMs.
@@ -21,9 +23,17 @@ class TranslationService {
   static const String _openAiChatCompletionsUrl = 'https://api.openai.com/v1/chat/completions';
   static const String _openAiPlaceholderTokenPrefix = '__SMART_ARB_PH_';
   static const String _openAiPlaceholderTokenSuffix = '__';
-  static final RegExp _openAiNoTranslateRegex = RegExp(r'<span class="notranslate">(.*?)</span>', dotAll: true);
-  static final RegExp _openAiOuterSpanRegex = RegExp(r'^<span>(.*)</span>$', dotAll: true);
-  static final RegExp _openAiCanonicalPlaceholderRegex = RegExp(r'__SMART_ARB_PH_(\d+)__');
+  static final RegExp _openAiNoTranslateRegex = RegExp(
+    r'<span class="notranslate">(.*?)</span>',
+    dotAll: true,
+  );
+  static final RegExp _openAiOuterSpanRegex = RegExp(
+    r'^<span>(.*)</span>$',
+    dotAll: true,
+  );
+  static final RegExp _openAiCanonicalPlaceholderRegex = RegExp(
+    r'__SMART_ARB_PH_(\d+)__',
+  );
   static final RegExp _openAiPlaceholderVariantRegex = RegExp(
     r'__(?:[\s_-])*smart(?:[\s_-])*arb(?:[\s_-])*ph(?:[\s_-])*(\d+)(?:[\s_-])*__',
     caseSensitive: false,
@@ -69,7 +79,9 @@ class TranslationService {
         return _translateWithNMT(translateList, parameters, client: client);
       case 'google_llm':
         if (projectId == null) {
-          throw ArgumentError('Project ID is required for LLM translation service');
+          throw ArgumentError(
+            'Project ID is required for LLM translation service',
+          );
         }
         return _translateWithLLM(
           translateList,
@@ -82,11 +94,7 @@ class TranslationService {
           client: client,
         );
       case 'openai':
-        return _translateWithOpenAi(
-          translateList,
-          parameters,
-          client: client,
-        );
+        return _translateWithOpenAi(translateList, parameters, client: client);
       case 'local_llm':
         if (localLlmOptions == null) {
           throw ArgumentError(
@@ -105,6 +113,179 @@ class TranslationService {
     }
   }
 
+  /// Context-aware, keyed resource translation for OpenAI-compatible LLMs.
+  /// The public string-only [translateTexts] API is kept for compatibility.
+  static Future<List<TranslationResult>> translateResources({
+    required List<TranslationResource> resources,
+    required Map<String, dynamic> parameters,
+    String translationService = 'openai',
+    String? projectId,
+    String authMode = 'api_key',
+    String? credentialsFile,
+    String? quotaProjectId,
+    String? accessToken,
+    LocalLlmOptions? localLlmOptions,
+    http.Client? client,
+  }) async {
+    if (resources.isEmpty) return const [];
+    if (translationService == 'google_llm') {
+      if (projectId == null || projectId.trim().isEmpty) {
+        throw ArgumentError('Project ID is required for google_llm resource translation.');
+      }
+      final results = <TranslationResult>[];
+      for (final resource in resources) {
+        final adapter = GoogleResourceAdapter(resource);
+        final values = await translateTexts(
+          translateList: [adapter.flattenedText],
+          parameters: <String, dynamic>{...parameters, 'resource_labels': adapter.llmLabels},
+          translationService: translationService,
+          projectId: projectId,
+          authMode: authMode,
+          credentialsFile: credentialsFile,
+          quotaProjectId: quotaProjectId,
+          accessToken: accessToken,
+          client: client,
+        );
+        results.add(TranslationResult(id: resource.id, translation: values.single));
+      }
+      return results;
+    }
+    if (translationService != 'openai' && translationService != 'local_llm') {
+      final adapters = resources.map(GoogleResourceAdapter.new).toList(growable: false);
+      final values = await translateTexts(
+        translateList: adapters.map((adapter) => adapter.flattenedText).toList(growable: false),
+        parameters: parameters,
+        translationService: translationService,
+        client: client,
+      );
+      return List<TranslationResult>.generate(
+        resources.length,
+        (index) => TranslationResult(
+          id: resources[index].id,
+          translation: values[index],
+        ),
+      );
+    }
+    final apiKey = (parameters['key'] as String?)?.trim();
+    if (translationService == 'openai' && (apiKey == null || apiKey.isEmpty)) {
+      throw ArgumentError(
+        'API key is required when translation_service is "openai"',
+      );
+    }
+    if (translationService == 'local_llm' && localLlmOptions == null) {
+      throw ArgumentError(
+        'LocalLlmOptions are required when translation_service is "local_llm"',
+      );
+    }
+    if (translationService == 'local_llm' && localLlmOptions!.profile == LocalLlmProfile.translategemma) {
+      final results = <TranslationResult>[];
+      for (final resource in resources) {
+        results.add(
+          await _translateWithTranslateGemma(
+            resource: resource,
+            parameters: parameters,
+            options: localLlmOptions,
+            client: client,
+          ),
+        );
+      }
+      return results;
+    }
+    final openAiModel = (parameters['openai_model'] as String?)?.trim();
+    final values = await _translateWithChatCompletions(
+      translateList: resources.map((resource) => toHtml(resource.sourceText)).toList(growable: false),
+      resources: resources,
+      parameters: parameters,
+      endpoint: translationService == 'openai' ? Uri.parse(_openAiChatCompletionsUrl) : localLlmOptions!.endpoint,
+      model: translationService == 'openai'
+          ? (openAiModel == null || openAiModel.isEmpty ? _openAiDefaultModel : openAiModel)
+          : localLlmOptions!.model,
+      providerLabel: translationService == 'openai' ? 'OpenAI' : 'Local LLM',
+      apiKey: apiKey == null || apiKey.isEmpty ? null : apiKey,
+      jsonMode: translationService == 'openai' || localLlmOptions!.jsonMode,
+      timeout: translationService == 'openai' ? null : localLlmOptions!.timeout,
+      client: client,
+      allowPerItemFallback: true,
+    );
+    return List<TranslationResult>.generate(
+      resources.length,
+      (index) => TranslationResult(
+        id: resources[index].id,
+        translation: values[index],
+      ),
+    );
+  }
+
+  static Future<TranslationResult> _translateWithTranslateGemma({
+    required TranslationResource resource,
+    required Map<String, dynamic> parameters,
+    required LocalLlmOptions options,
+    required http.Client? client,
+  }) async {
+    final target = (parameters['target'] as String?)?.trim();
+    if (target == null || target.isEmpty) {
+      throw ArgumentError('Target language is required for TranslateGemma translation.');
+    }
+    final prepared = _prepareOpenAiTexts([toHtml(resource.sourceText)]);
+    final protectedText = prepared.promptTexts.single;
+    final context = <String>[
+      if (resource.description != null && resource.description!.isNotEmpty) 'Context: ${resource.description}',
+      if (resource.uiRole != null && resource.uiRole!.isNotEmpty) 'UI role: ${resource.uiRole}',
+      if (resource.screenContext != null && resource.screenContext!.isNotEmpty) 'Screen: ${resource.screenContext}',
+      if (resource.glossary.isNotEmpty)
+        'Terminology: ${resource.glossary.entries.map((entry) => '${entry.key}=${entry.value}').join(', ')}',
+    ].join('\n');
+    final prompt = StringBuffer()
+      ..writeln(
+          'Translate the following user-interface text from ${parameters['source'] ?? 'English'} to ${_translateGemmaLocale(target)}.')
+      ..writeln(
+          'Return only the translated text. Preserve every token matching __SMART_ARB_PH_<number>__ exactly. Do not mention the context.')
+      ..writeln('Text: $protectedText');
+    if (context.isNotEmpty) prompt.writeln(context);
+    final apiKey = (parameters['key'] as String?)?.trim();
+    FormatException? lastError;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final response = await _callChatCompletions(
+          url: options.endpoint,
+          apiKey: apiKey == null || apiKey.isEmpty ? null : apiKey,
+          body: <String, dynamic>{
+            'model': options.model,
+            'temperature': 0,
+            'messages': [
+              {'role': 'user', 'content': prompt.toString().trim()},
+            ],
+          },
+          client: client,
+          timeout: options.timeout,
+        );
+        final raw = _extractChatContent(response.body).trim();
+        final restored =
+            _restoreOpenAiPlaceholders([raw], prepared.placeholderTokensByText, providerLabel: 'TranslateGemma').single;
+        _assertTranslationsLikelyLocalized(
+          translations: [restored],
+          promptTexts: prepared.promptTexts,
+          placeholderTokensByText: prepared.placeholderTokensByText,
+          targetLanguage: target,
+          providerLabel: 'TranslateGemma',
+        );
+        if (_looksLikeTranslatorCommentary(restored)) {
+          throw _LlmFormatException(
+              _LlmFormatErrorKind.commentary, 'TranslateGemma returned commentary instead of a translation.');
+        }
+        return TranslationResult(id: resource.id, translation: restored);
+      } on FormatException catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError ?? const FormatException('TranslateGemma returned an invalid translation.');
+  }
+
+  static String _translateGemmaLocale(String locale) {
+    const mappings = {'fil': 'fil-PH'};
+    return mappings[locale.toLowerCase()] ?? locale;
+  }
+
   static Future<List<String>> _translateWithBasic(
     List<String> translateList,
     Map<String, dynamic> parameters, {
@@ -114,8 +295,9 @@ class TranslationService {
     final translated = <String>[];
     requestParameters['q'] = translateList;
 
-    final url = Uri.parse('https://translation.googleapis.com/language/translate/v2')
-        .resolveUri(Uri(queryParameters: requestParameters));
+    final url = Uri.parse(
+      'https://translation.googleapis.com/language/translate/v2',
+    ).resolveUri(Uri(queryParameters: requestParameters));
 
     final data = await (client?.get(url) ?? http.get(url));
 
@@ -214,7 +396,10 @@ class TranslationService {
         ));
 
     if (response.statusCode != 200) {
-      throw http.ClientException('Error ${response.statusCode}: ${response.body}', url);
+      throw http.ClientException(
+        'Error ${response.statusCode}: ${response.body}',
+        url,
+      );
     }
 
     return _extractV3Translations(response.body);
@@ -241,19 +426,14 @@ class TranslationService {
       headers['x-goog-user-project'] = quotaProject;
     }
 
-    final response = await (client?.post(
-          url,
-          headers: headers,
-          body: jsonEncode(body),
-        ) ??
-        http.post(
-          url,
-          headers: headers,
-          body: jsonEncode(body),
-        ));
+    final response = await (client?.post(url, headers: headers, body: jsonEncode(body)) ??
+        http.post(url, headers: headers, body: jsonEncode(body)));
 
     if (response.statusCode != 200) {
-      throw http.ClientException('Error ${response.statusCode}: ${response.body}', url);
+      throw http.ClientException(
+        'Error ${response.statusCode}: ${response.body}',
+        url,
+      );
     }
 
     return _extractV3Translations(response.body);
@@ -267,7 +447,9 @@ class TranslationService {
   }) async {
     final apiKey = (parameters['key'] as String?)?.trim();
     if (apiKey == null || apiKey.isEmpty) {
-      throw ArgumentError('API key is required when translation_service is "openai"');
+      throw ArgumentError(
+        'API key is required when translation_service is "openai"',
+      );
     }
 
     final openAiModel = (parameters['openai_model'] as String?)?.trim();
@@ -316,6 +498,7 @@ class TranslationService {
     required bool jsonMode,
     required http.Client? client,
     required bool allowPerItemFallback,
+    List<TranslationResource>? resources,
     Duration? timeout,
   }) async {
     final targetLanguage = (parameters['target'] as String?)?.trim();
@@ -343,6 +526,7 @@ class TranslationService {
               expectedCount: translateList.length,
               strictRetryMode: attempt > 0,
               includeResponseFormat: jsonMode,
+              resources: resources,
             ),
             client: client,
             timeout: timeout,
@@ -352,6 +536,7 @@ class TranslationService {
             response.body,
             expectedCount: translateList.length,
             providerLabel: providerLabel,
+            resources: resources,
           );
           final restoredTranslations = _restoreOpenAiPlaceholders(
             extracted,
@@ -387,6 +572,7 @@ class TranslationService {
           jsonMode: jsonMode,
           timeout: timeout,
           client: client,
+          resources: resources,
         );
       }
       rethrow;
@@ -422,11 +608,15 @@ class TranslationService {
 
       final credentialsFileRef = File(serviceAccountPath);
       if (!credentialsFileRef.existsSync()) {
-        throw ArgumentError('Service account credentials file not found: $serviceAccountPath');
+        throw ArgumentError(
+          'Service account credentials file not found: $serviceAccountPath',
+        );
       }
 
       final credentialsJson = jsonDecode(credentialsFileRef.readAsStringSync());
-      final serviceAccountCredentials = auth.ServiceAccountCredentials.fromJson(credentialsJson);
+      final serviceAccountCredentials = auth.ServiceAccountCredentials.fromJson(
+        credentialsJson,
+      );
       authClient = await auth.clientViaServiceAccount(
         serviceAccountCredentials,
         [_cloudPlatformScope],
@@ -458,6 +648,10 @@ class TranslationService {
     if (parameters.containsKey('source')) {
       body['sourceLanguageCode'] = parameters['source'] as String;
     }
+    final labels = parameters['resource_labels'];
+    if (labels is Map<String, String> && labels.isNotEmpty) {
+      body['labels'] = labels;
+    }
     return body;
   }
 
@@ -470,24 +664,39 @@ class TranslationService {
     required int expectedCount,
     required bool strictRetryMode,
     required bool includeResponseFormat,
+    List<TranslationResource>? resources,
   }) {
     final systemPrompt = StringBuffer()
-      ..writeln('You are a professional localization translator for ARB resources.')
+      ..writeln(
+        'You are a professional localization translator for ARB resources.',
+      )
       ..writeln('Translate each input string to the requested target language.')
       ..writeln(
-          'Preserve line breaks, punctuation, spacing, and any HTML tags exactly when they should not change meaning.')
+        'Preserve line breaks, punctuation, spacing, and any HTML tags exactly when they should not change meaning.',
+      )
       ..writeln(
-          'Placeholder tokens follow the pattern "__SMART_ARB_PH_<number>__". Never translate, alter, remove, or reorder these tokens.')
-      ..writeln('Do not add or remove items, and keep the same order as the input list.')
-      ..writeln('The "translations" array length must be exactly $expectedCount.')
-      ..writeln('Return strict JSON only in the format {"translations":["..."]}.');
+        'Placeholder tokens follow the pattern "__SMART_ARB_PH_<number>__". Never translate, alter, remove, or reorder these tokens.',
+      )
+      ..writeln(
+        'Do not add or remove items, and keep the same order as the input list.',
+      )
+      ..writeln(
+        'The "translations" array length must be exactly $expectedCount.',
+      )
+      ..writeln(
+        'Return strict JSON only in the format {"translations":["..."]}.',
+      );
 
     if (strictRetryMode) {
       systemPrompt
         ..writeln()
         ..writeln('Critical: Your previous output violated constraints.')
-        ..writeln('Return exactly $expectedCount translations and nothing else.')
-        ..writeln('Preserve every placeholder token exactly (no edits or omissions).');
+        ..writeln(
+          'Return exactly $expectedCount translations and nothing else.',
+        )
+        ..writeln(
+          'Preserve every placeholder token exactly (no edits or omissions).',
+        );
     }
 
     if (translationContext != null && translationContext.isNotEmpty) {
@@ -497,10 +706,22 @@ class TranslationService {
         ..writeln(translationContext);
     }
 
-    final userPayload = <String, dynamic>{
-      'target_language': targetLanguage,
-      'texts': translateList,
-    };
+    final userPayload = <String, dynamic>{'target_language': targetLanguage};
+    if (resources == null) {
+      userPayload['texts'] = translateList;
+    } else {
+      systemPrompt
+        ..writeln(
+          'For structured resources, return every supplied id exactly once.',
+        )
+        ..writeln(
+          'Use {"translations":[{"id":"<id>","translation":"<text>"}]}; never translate context fields.',
+        );
+      userPayload['resources'] = List<Map<String, dynamic>>.generate(
+        resources.length,
+        (index) => resources[index].toJson(protectedSourceText: translateList[index]),
+      );
+    }
 
     if (sourceLanguage != null && sourceLanguage.isNotEmpty) {
       userPayload['source_language'] = sourceLanguage;
@@ -532,17 +753,24 @@ class TranslationService {
     String responseBody, {
     required int expectedCount,
     required String providerLabel,
+    List<TranslationResource>? resources,
   }) {
     final responseJson = jsonDecode(responseBody) as Map<String, dynamic>;
-    final choices = List<Map<String, dynamic>>.from(responseJson['choices'] as List<dynamic>? ?? const []);
+    final choices = List<Map<String, dynamic>>.from(
+      responseJson['choices'] as List<dynamic>? ?? const [],
+    );
     if (choices.isEmpty) {
-      throw FormatException('$providerLabel response did not contain any choices.');
+      throw FormatException(
+        '$providerLabel response did not contain any choices.',
+      );
     }
 
     final message = choices.first['message'] as Map<String, dynamic>?;
     final rawContent = message?['content'];
     if (rawContent == null) {
-      throw FormatException('$providerLabel response did not contain message content.');
+      throw FormatException(
+        '$providerLabel response did not contain message content.',
+      );
     }
 
     String content;
@@ -553,15 +781,43 @@ class TranslationService {
           rawContent.map((part) => part is Map<String, dynamic> ? part['text'] : null).whereType<String>().join();
       content = textParts;
     } else {
-      throw FormatException('$providerLabel response content had an unexpected type.');
+      throw FormatException(
+        '$providerLabel response content had an unexpected type.',
+      );
     }
 
     final normalizedContent = _stripJsonCodeFence(content.trim());
     final parsedContent = jsonDecode(normalizedContent) as Map<String, dynamic>;
-    var translations = List<String>.from(
-      (parsedContent['translations'] as List<dynamic>? ?? const []).map((item) => item.toString()),
+    final rawTranslations = parsedContent['translations'] as List<dynamic>? ?? const [];
+    List<String> translations;
+    if (resources == null) {
+      translations = List<String>.from(
+        rawTranslations.map((item) => item.toString()),
+      );
+    } else {
+      final byId = <String, String>{};
+      for (final raw in rawTranslations) {
+        if (raw is! Map<String, dynamic>) {
+          throw _LlmFormatException(
+            _LlmFormatErrorKind.countMismatch,
+            '$providerLabel returned an unkeyed structured translation.',
+          );
+        }
+        final result = TranslationResult.fromJson(raw);
+        if (!resources.any((resource) => resource.id == result.id) || byId.containsKey(result.id)) {
+          throw _LlmFormatException(
+            _LlmFormatErrorKind.countMismatch,
+            '$providerLabel returned an unexpected or duplicate resource id ${result.id}.',
+          );
+        }
+        byId[result.id] = result.translation;
+      }
+      translations = resources.map((resource) => byId[resource.id] ?? '').toList(growable: false);
+    }
+    translations = _normalizeOpenAiTranslationCount(
+      translations,
+      expectedCount,
     );
-    translations = _normalizeOpenAiTranslationCount(translations, expectedCount);
 
     if (translations.length != expectedCount) {
       throw _LlmFormatException(
@@ -573,12 +829,27 @@ class TranslationService {
     return translations;
   }
 
+  static String _extractChatContent(String responseBody) {
+    final responseJson = jsonDecode(responseBody) as Map<String, dynamic>;
+    final choices = List<Map<String, dynamic>>.from(responseJson['choices'] as List<dynamic>? ?? const []);
+    if (choices.isEmpty) throw FormatException('LLM response did not contain any choices.');
+    final rawContent = (choices.first['message'] as Map<String, dynamic>?)?['content'];
+    if (rawContent is String) return rawContent;
+    if (rawContent is List) {
+      return rawContent.map((part) => part is Map<String, dynamic> ? part['text'] : null).whereType<String>().join();
+    }
+    throw FormatException('LLM response did not contain text content.');
+  }
+
   static String _stripJsonCodeFence(String content) {
     if (!content.startsWith('```')) {
       return content;
     }
 
-    final withoutOpening = content.replaceFirst(RegExp(r'^```(?:json)?\s*'), '');
+    final withoutOpening = content.replaceFirst(
+      RegExp(r'^```(?:json)?\s*'),
+      '',
+    );
     return withoutOpening.replaceFirst(RegExp(r'\s*```$'), '');
   }
 
@@ -614,9 +885,11 @@ class TranslationService {
     required bool jsonMode,
     required Duration? timeout,
     required http.Client? client,
+    List<TranslationResource>? resources,
   }) async {
     final translated = <String>[];
-    for (final text in translateList) {
+    for (var index = 0; index < translateList.length; index++) {
+      final text = translateList[index];
       try {
         final singleResult = await _translateWithChatCompletions(
           translateList: [text],
@@ -629,6 +902,7 @@ class TranslationService {
           timeout: timeout,
           client: client,
           allowPerItemFallback: false,
+          resources: resources == null ? null : [resources[index]],
         );
         translated.add(singleResult.first);
       } on FormatException catch (error) {
@@ -653,27 +927,20 @@ class TranslationService {
     required http.Client? client,
     required Duration? timeout,
   }) async {
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-    };
+    final headers = <String, String>{'Content-Type': 'application/json'};
     if (apiKey != null && apiKey.isNotEmpty) {
       headers['Authorization'] = 'Bearer $apiKey';
     }
 
-    final request = client?.post(
-          url,
-          headers: headers,
-          body: jsonEncode(body),
-        ) ??
-        http.post(
-          url,
-          headers: headers,
-          body: jsonEncode(body),
-        );
+    final request = client?.post(url, headers: headers, body: jsonEncode(body)) ??
+        http.post(url, headers: headers, body: jsonEncode(body));
     final response = await (timeout == null ? request : request.timeout(timeout));
 
     if (response.statusCode != 200) {
-      throw http.ClientException('Error ${response.statusCode}: ${response.body}', url);
+      throw http.ClientException(
+        'Error ${response.statusCode}: ${response.body}',
+        url,
+      );
     }
     return response;
   }
@@ -691,7 +958,9 @@ class TranslationService {
 
       var tokenIndex = 0;
       final tokenMap = <String, String>{};
-      workingText = workingText.replaceAllMapped(_openAiNoTranslateRegex, (match) {
+      workingText = workingText.replaceAllMapped(_openAiNoTranslateRegex, (
+        match,
+      ) {
         final placeholderName = match.group(1) ?? '';
         final token = '$_openAiPlaceholderTokenPrefix$tokenIndex$_openAiPlaceholderTokenSuffix';
         tokenMap[token] = placeholderName;
@@ -803,19 +1072,29 @@ class TranslationService {
       return false;
     }
 
-    final sourceWithoutPlaceholders = sourceText.replaceAll(_comparisonPlaceholderRegex, ' ');
+    final sourceWithoutPlaceholders = sourceText.replaceAll(
+      _comparisonPlaceholderRegex,
+      ' ',
+    );
     final englishWords =
         _englishWordRegex.allMatches(sourceWithoutPlaceholders).map((match) => match.group(0)!).toList();
 
     return englishWords.length >= 3;
   }
 
+  static bool _looksLikeTranslatorCommentary(String value) => RegExp(
+        r"^(?:here(?:'s| is)|translation\s*:|sure[,!]|note\s*:)",
+        caseSensitive: false,
+      ).hasMatch(value.trim());
+
   static String _normalizeComparisonText(String text) {
     return text.replaceAll(_comparisonWhitespaceRegex, ' ').trim();
   }
 
   static String _normalizeOpenAiPlaceholderTokens(String translation) {
-    return translation.replaceAllMapped(_openAiPlaceholderVariantRegex, (match) {
+    return translation.replaceAllMapped(_openAiPlaceholderVariantRegex, (
+      match,
+    ) {
       final tokenIndex = match.group(1);
       return '$_openAiPlaceholderTokenPrefix$tokenIndex$_openAiPlaceholderTokenSuffix';
     });
@@ -860,8 +1139,12 @@ class TranslationService {
   /// - [arbDocument]: Source ARB document containing manual translation overrides
   ///
   /// Returns updated translation lists with manual translations inserted where available.
-  static List<List<String>> insertManualTranslations(List<List<String>> translationsLists,
-      List<List<Action>> actionLists, String languageCode, ArbDocument arbDocument) {
+  static List<List<String>> insertManualTranslations(
+    List<List<String>> translationsLists,
+    List<List<Action>> actionLists,
+    String languageCode,
+    ArbDocument arbDocument,
+  ) {
     List<List<String>> updatedTranslationsLists = [];
 
     for (var i = 0; i < translationsLists.length; i++) {
@@ -896,7 +1179,9 @@ class TranslationService {
     required String languageCode,
     required ArbDocument sourceDocument,
   }) {
-    final updatedResources = <String, ArbResource>{...translatedDocument.resources};
+    final updatedResources = <String, ArbResource>{
+      ...translatedDocument.resources,
+    };
 
     for (final entry in sourceDocument.resources.entries) {
       final manualTranslation = entry.value.attributes?.xTranslations?[languageCode];
@@ -905,7 +1190,9 @@ class TranslationService {
       }
 
       final existingResource = updatedResources[entry.key] ?? entry.value;
-      updatedResources[entry.key] = existingResource.copyWith(text: manualTranslation);
+      updatedResources[entry.key] = existingResource.copyWith(
+        text: manualTranslation,
+      );
     }
 
     return translatedDocument.copyWith(resources: updatedResources);
@@ -968,11 +1255,7 @@ class Action {
   });
 }
 
-enum _LlmFormatErrorKind {
-  countMismatch,
-  placeholder,
-  untranslated,
-}
+enum _LlmFormatErrorKind { countMismatch, placeholder, untranslated, commentary }
 
 class _LlmFormatException extends FormatException {
   final _LlmFormatErrorKind kind;
