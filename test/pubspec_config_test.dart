@@ -103,6 +103,10 @@ smart_arb_translator:
   credentials_file: secrets/service-account.json
   quota_project_id: billing-project
   openai_model: gpt-4.1-mini
+  local_llm_url: http://127.0.0.1:11434/v1/chat/completions
+  local_llm_model: qwen2.5:32b
+  local_llm_json_mode: false
+  local_llm_timeout_seconds: 900
   translation_context: Keep product names in English
   translation_context_file: docs/translation_context.md
 ''');
@@ -130,6 +134,10 @@ smart_arb_translator:
       expect(config.credentialsFile, equals('secrets/service-account.json'));
       expect(config.quotaProjectId, equals('billing-project'));
       expect(config.openaiModel, equals('gpt-4.1-mini'));
+      expect(config.localLlmUrl, equals('http://127.0.0.1:11434/v1/chat/completions'));
+      expect(config.localLlmModel, equals('qwen2.5:32b'));
+      expect(config.localLlmJsonMode, isFalse);
+      expect(config.localLlmTimeoutSeconds, equals(900));
       expect(config.translationContext, equals('Keep product names in English'));
       expect(config.translationContextFile, equals('docs/translation_context.md'));
     });

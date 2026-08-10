@@ -9,6 +9,7 @@ import 'package:smart_arb_translator/src/argument_parser.dart';
 import 'package:smart_arb_translator/src/cache_cleanup.dart';
 import 'package:smart_arb_translator/src/console_utils.dart';
 import 'package:smart_arb_translator/src/directory_processor.dart';
+import 'package:smart_arb_translator/src/models/local_llm_options.dart';
 import 'package:smart_arb_translator/src/single_file_processor.dart';
 import 'package:yaml/yaml.dart';
 
@@ -113,6 +114,16 @@ void main(List<String> args) async {
   final credentialsFile = result[ArbTranslatorArgumentParser.credentialsFile] as String?;
   final quotaProjectId = result[ArbTranslatorArgumentParser.quotaProjectId] as String?;
   final openaiModel = result[ArbTranslatorArgumentParser.openaiModel] as String? ?? 'gpt-4o-mini';
+  final localLlmOptions = translationService == 'local_llm'
+      ? LocalLlmOptions.fromConfig(
+          endpoint: result[ArbTranslatorArgumentParser.localLlmUrl] as String? ?? LocalLlmOptions.defaultEndpoint,
+          model: result[ArbTranslatorArgumentParser.localLlmModel] as String,
+          jsonMode: result[ArbTranslatorArgumentParser.localLlmJsonMode] as bool? ?? true,
+          timeoutSeconds: ArbTranslatorArgumentParser.parseLocalLlmTimeoutSeconds(
+            result[ArbTranslatorArgumentParser.localLlmTimeoutSeconds],
+          ),
+        )
+      : null;
   final translationContext = _readTranslationContext(
     result[ArbTranslatorArgumentParser.translationContext] as String?,
     result[ArbTranslatorArgumentParser.translationContextFile] as String?,
@@ -154,6 +165,7 @@ void main(List<String> args) async {
       quotaProjectId: quotaProjectId,
       openaiModel: openaiModel,
       translationContext: translationContext,
+      localLlmOptions: localLlmOptions,
       parallelTranslations: parallelTranslations,
     );
   } else if (sourceArb != null) {
@@ -177,6 +189,7 @@ void main(List<String> args) async {
       quotaProjectId: quotaProjectId,
       openaiModel: openaiModel,
       translationContext: translationContext,
+      localLlmOptions: localLlmOptions,
       parallelTranslations: parallelTranslations,
     );
 

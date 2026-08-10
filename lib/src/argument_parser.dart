@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:args/args.dart';
 import 'package:console/console.dart';
+import 'package:smart_arb_translator/src/models/local_llm_options.dart';
 import 'pubspec_config.dart';
 
 /// Command-line argument parser for the Smart ARB Translator.
@@ -43,6 +44,10 @@ class ArbTranslatorArgumentParser {
   static const _credentialsFile = 'credentials_file';
   static const _quotaProjectId = 'quota_project_id';
   static const _openaiModel = 'openai_model';
+  static const _localLlmUrl = 'local_llm_url';
+  static const _localLlmModel = 'local_llm_model';
+  static const _localLlmJsonMode = 'local_llm_json_mode';
+  static const _localLlmTimeoutSeconds = 'local_llm_timeout_seconds';
   static const _translationContext = 'translation_context';
   static const _translationContextFile = 'translation_context_file';
   static const _parallelTranslations = 'parallel_translations';
@@ -90,7 +95,8 @@ class ArbTranslatorArgumentParser {
       ..addMultiOption(_languageCodes, defaultsTo: ['es'])
       ..addOption(
         _apiKey,
-        help: 'path to api_key (required for google_basic/google_nmt, openai, and google_llm with auth_mode=api_key)',
+        help:
+            'path to api_key (required for google_basic/google_nmt, openai, and google_llm with auth_mode=api_key; optional bearer token for local_llm)',
       )
       ..addOption(
         _outputFileName,
@@ -141,8 +147,14 @@ class ArbTranslatorArgumentParser {
       ..addOption(
         _translationService,
         help:
-            'translation service to use: "google_basic" (v2), "google_nmt" (v2 with model=nmt), "google_llm" (v3), or "openai"',
-        allowed: ['google_basic', 'google_nmt', 'google_llm', 'openai'],
+            'translation service to use: "google_basic" (v2), "google_nmt" (v2 with model=nmt), "google_llm" (v3), "openai", or "local_llm"',
+        allowed: [
+          'google_basic',
+          'google_nmt',
+          'google_llm',
+          'openai',
+          'local_llm',
+        ],
         defaultsTo: 'google_basic',
       )
       ..addOption(
@@ -170,8 +182,27 @@ class ArbTranslatorArgumentParser {
         defaultsTo: 'gpt-4o-mini',
       )
       ..addOption(
+        _localLlmUrl,
+        help: 'OpenAI-compatible chat-completions URL used when translation_service=local_llm',
+        defaultsTo: LocalLlmOptions.defaultEndpoint,
+      )
+      ..addOption(
+        _localLlmModel,
+        help: 'model identifier exposed by the local LLM runtime (required for local_llm)',
+      )
+      ..addFlag(
+        _localLlmJsonMode,
+        help: 'request JSON mode from the local OpenAI-compatible endpoint',
+        defaultsTo: true,
+      )
+      ..addOption(
+        _localLlmTimeoutSeconds,
+        help: 'maximum duration of one local LLM request, in seconds',
+        defaultsTo: LocalLlmOptions.defaultTimeoutSeconds.toString(),
+      )
+      ..addOption(
         _translationContext,
-        help: 'optional context/instructions for LLM translations (google_llm or openai)',
+        help: 'optional context/instructions for LLM translations (google_llm, openai, or local_llm)',
       )
       ..addOption(
         _translationContextFile,
@@ -200,6 +231,19 @@ class ArbTranslatorArgumentParser {
     if (trimmed.isEmpty) return defaultParallelTranslations;
     final parsed = int.tryParse(trimmed);
     if (parsed == null || parsed < 1) return defaultParallelTranslations;
+    return parsed;
+  }
+
+  /// Parses the local inference timeout, applying validation and the default.
+  static int parseLocalLlmTimeoutSeconds(dynamic raw) {
+    if (raw == null) return LocalLlmOptions.defaultTimeoutSeconds;
+    if (raw is int) {
+      return raw < 1 ? LocalLlmOptions.defaultTimeoutSeconds : raw;
+    }
+    final parsed = int.tryParse(raw.toString().trim());
+    if (parsed == null || parsed < 1) {
+      return LocalLlmOptions.defaultTimeoutSeconds;
+    }
     return parsed;
   }
 
@@ -292,12 +336,18 @@ class ArbTranslatorArgumentParser {
     final authMode = mergedResult[_authMode] as String? ?? 'api_key';
     final apiKey = (mergedResult[_apiKey] as String?)?.trim();
     final credentialsFile = (mergedResult[_credentialsFile] as String?)?.trim();
+    final localLlmUrl = (mergedResult[_localLlmUrl] as String?)?.trim() ?? LocalLlmOptions.defaultEndpoint;
+    final localLlmModel = (mergedResult[_localLlmModel] as String?)?.trim();
+    final localLlmJsonMode = mergedResult[_localLlmJsonMode] as bool? ?? true;
+    final localLlmTimeoutSeconds = parseLocalLlmTimeoutSeconds(
+      mergedResult[_localLlmTimeoutSeconds],
+    );
     final translationContextFile = (mergedResult[_translationContextFile] as String?)?.trim();
 
-    final needsApiKey =
-        translationService == 'google_basic' || translationService == 'google_nmt' || translationService == 'openai'
-            ? true
-            : authMode == 'api_key';
+    final needsApiKey = translationService == 'google_basic' ||
+        translationService == 'google_nmt' ||
+        translationService == 'openai' ||
+        (translationService == 'google_llm' && authMode == 'api_key');
     if (needsApiKey && (apiKey == null || apiKey.isEmpty)) {
       _setBrightRed();
       stderr.write('--api_key is required (can be set in pubspec.yaml under smart_arb_translator section)');
@@ -328,6 +378,28 @@ class ArbTranslatorArgumentParser {
               '--credentials_file is required when --auth_mode is "service_account" (or set GOOGLE_APPLICATION_CREDENTIALS).');
           exit(2);
         }
+      }
+    }
+
+    if (translationService == 'local_llm') {
+      if (localLlmModel == null || localLlmModel.isEmpty) {
+        _setBrightRed();
+        stderr.write(
+          '--local_llm_model is required when --translation_service is "local_llm".',
+        );
+        exit(2);
+      }
+      try {
+        LocalLlmOptions.fromConfig(
+          endpoint: localLlmUrl,
+          model: localLlmModel,
+          jsonMode: localLlmJsonMode,
+          timeoutSeconds: localLlmTimeoutSeconds,
+        );
+      } on ArgumentError catch (error) {
+        _setBrightRed();
+        stderr.write(error.message?.toString() ?? error.toString());
+        exit(2);
       }
     }
 
@@ -383,6 +455,18 @@ class ArbTranslatorArgumentParser {
     if (pubspecConfig.credentialsFile != null) mergedOptions[_credentialsFile] = pubspecConfig.credentialsFile;
     if (pubspecConfig.quotaProjectId != null) mergedOptions[_quotaProjectId] = pubspecConfig.quotaProjectId;
     if (pubspecConfig.openaiModel != null) mergedOptions[_openaiModel] = pubspecConfig.openaiModel;
+    if (pubspecConfig.localLlmUrl != null) {
+      mergedOptions[_localLlmUrl] = pubspecConfig.localLlmUrl;
+    }
+    if (pubspecConfig.localLlmModel != null) {
+      mergedOptions[_localLlmModel] = pubspecConfig.localLlmModel;
+    }
+    if (pubspecConfig.localLlmJsonMode != null) {
+      mergedOptions[_localLlmJsonMode] = pubspecConfig.localLlmJsonMode;
+    }
+    if (pubspecConfig.localLlmTimeoutSeconds != null) {
+      mergedOptions[_localLlmTimeoutSeconds] = pubspecConfig.localLlmTimeoutSeconds;
+    }
     if (pubspecConfig.translationContext != null) {
       mergedOptions[_translationContext] = pubspecConfig.translationContext;
     }
@@ -411,6 +495,9 @@ class ArbTranslatorArgumentParser {
     mergedOptions[_translationService] ??= 'google_basic';
     mergedOptions[_authMode] ??= 'api_key';
     mergedOptions[_openaiModel] ??= 'gpt-4o-mini';
+    mergedOptions[_localLlmUrl] ??= LocalLlmOptions.defaultEndpoint;
+    mergedOptions[_localLlmJsonMode] ??= true;
+    mergedOptions[_localLlmTimeoutSeconds] ??= LocalLlmOptions.defaultTimeoutSeconds.toString();
     mergedOptions[_parallelTranslations] ??= defaultParallelTranslations.toString();
 
     return _MergedArgResults(mergedOptions, cliResult);
@@ -473,8 +560,10 @@ class ArbTranslatorArgumentParser {
     print('   - Large Language Model translation (requires Project ID)');
     print('4. OpenAI');
     print('   - Uses OpenAI chat models with optional translation context');
+    print('5. Local LLM');
+    print('   - Uses a local OpenAI-compatible server such as Ollama or LM Studio');
     print('');
-    print('Enter your choice (1, 2, 3, or 4) [default: 1]: ');
+    print('Enter your choice (1, 2, 3, 4, or 5) [default: 1]: ');
 
     final serviceInput = stdin.readLineSync()?.trim() ?? '';
     String service = 'google_basic';
@@ -485,6 +574,8 @@ class ArbTranslatorArgumentParser {
       service = 'google_llm';
     } else if (serviceInput == '4') {
       service = 'openai';
+    } else if (serviceInput == '5') {
+      service = 'local_llm';
     }
 
     config[_translationService] = service;
@@ -548,6 +639,24 @@ class ArbTranslatorArgumentParser {
       print('\nEnter OpenAI model (default: gpt-4o-mini): ');
       final openAiModelInput = stdin.readLineSync()?.trim() ?? '';
       config[_openaiModel] = openAiModelInput.isEmpty ? 'gpt-4o-mini' : openAiModelInput;
+    } else if (service == 'local_llm') {
+      print(
+        '\nEnter the local OpenAI-compatible chat-completions URL '
+        '(default: ${LocalLlmOptions.defaultEndpoint}): ',
+      );
+      final endpointInput = stdin.readLineSync()?.trim() ?? '';
+      config[_localLlmUrl] = endpointInput.isEmpty ? LocalLlmOptions.defaultEndpoint : endpointInput;
+
+      print('\nEnter the local model identifier (for example qwen2.5:32b): ');
+      final modelInput = stdin.readLineSync()?.trim() ?? '';
+      if (modelInput.isEmpty) {
+        _setBrightRed();
+        stderr.write('A local LLM model identifier is required.');
+        exit(2);
+      }
+      config[_localLlmModel] = modelInput;
+      config[_localLlmJsonMode] = true;
+      config[_localLlmTimeoutSeconds] = LocalLlmOptions.defaultTimeoutSeconds;
     } else {
       // V2 services require API key authentication
       config[_authMode] = 'api_key';
@@ -594,7 +703,7 @@ class ArbTranslatorArgumentParser {
 
     config[_languageCodes] = languageCodes;
 
-    if (service == 'google_llm' || service == 'openai') {
+    if (service == 'google_llm' || service == 'openai' || service == 'local_llm') {
       print('\nOptional: add translation context/style guide (leave blank to skip): ');
       final contextInput = stdin.readLineSync() ?? '';
       if (contextInput.trim().isNotEmpty) {
@@ -747,6 +856,10 @@ class ArbTranslatorArgumentParser {
       'credentials_file:',
       'quota_project_id:',
       'openai_model:',
+      'local_llm_url:',
+      'local_llm_model:',
+      'local_llm_json_mode:',
+      'local_llm_timeout_seconds:',
       'translation_context:',
       'translation_context_file:',
       'parallel_translations:'
@@ -834,6 +947,10 @@ class ArbTranslatorArgumentParser {
   static String get credentialsFile => _credentialsFile;
   static String get quotaProjectId => _quotaProjectId;
   static String get openaiModel => _openaiModel;
+  static String get localLlmUrl => _localLlmUrl;
+  static String get localLlmModel => _localLlmModel;
+  static String get localLlmJsonMode => _localLlmJsonMode;
+  static String get localLlmTimeoutSeconds => _localLlmTimeoutSeconds;
   static String get translationContext => _translationContext;
   static String get translationContextFile => _translationContextFile;
   static String get parallelTranslations => _parallelTranslations;

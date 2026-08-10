@@ -7,6 +7,7 @@ import 'package:path/path.dart' as path;
 import 'package:smart_arb_translator/src/dart_code_generator.dart';
 import 'package:smart_arb_translator/src/file_operations.dart' as translator_file_ops;
 import 'package:smart_arb_translator/src/models/arb_document.dart';
+import 'package:smart_arb_translator/src/models/local_llm_options.dart';
 import 'package:smart_arb_translator/src/single_file_processor.dart';
 import 'package:smart_arb_translator/src/translation_statistics.dart';
 
@@ -111,6 +112,7 @@ class DirectoryProcessor {
     String? quotaProjectId,
     String openaiModel = 'gpt-4o-mini',
     String? translationContext,
+    LocalLlmOptions? localLlmOptions,
     int parallelTranslations = 1,
   }) async {
     dartClassName ??= (l10nMethod == 'gen-l10n') ? 'AppLocalizations' : 'S';
@@ -203,6 +205,7 @@ class DirectoryProcessor {
         quotaProjectId: quotaProjectId,
         openaiModel: openaiModel,
         translationContext: translationContext,
+        localLlmOptions: localLlmOptions,
         parallelTranslations: effectiveParallelism,
       );
     }
@@ -420,6 +423,7 @@ class DirectoryProcessor {
     required String? quotaProjectId,
     required String openaiModel,
     required String? translationContext,
+    required LocalLlmOptions? localLlmOptions,
     required int parallelTranslations,
   }) async {
     final fileExt = path.extension(path.basename(arbFile.path));
@@ -449,6 +453,7 @@ class DirectoryProcessor {
         quotaProjectId: quotaProjectId,
         openaiModel: openaiModel,
         translationContext: translationContext,
+        localLlmOptions: localLlmOptions,
       );
     }
 

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 import 'package:smart_arb_translator/src/models/arb_attributes.dart';
+import 'package:smart_arb_translator/src/models/local_llm_options.dart';
 import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/translation_service.dart';
 import 'package:smart_arb_translator/src/utils.dart';
@@ -132,6 +133,7 @@ class ArbProcessor {
     String? quotaProjectId,
     String openaiModel = 'gpt-4o-mini',
     String? translationContext,
+    LocalLlmOptions? localLlmOptions,
   }) async {
     var newArbDocument = arbDocument.copyWith(locale: languageCode);
 
@@ -149,6 +151,7 @@ class ArbProcessor {
         authMode: authMode,
         credentialsFile: credentialsFile,
         quotaProjectId: quotaProjectId,
+        localLlmOptions: localLlmOptions,
       );
     }).toList();
 

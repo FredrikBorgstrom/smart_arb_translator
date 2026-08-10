@@ -25,7 +25,7 @@ class PubspecConfig {
   /// Directory containing source ARB files to translate recursively.
   final String? sourceDir;
 
-  /// Path to an API key file (Google or OpenAI depending on service).
+  /// Path to an API key file, or an optional local-server bearer token.
   final String? apiKey;
 
   /// Directory where translation cache will be stored.
@@ -87,6 +87,18 @@ class PubspecConfig {
   /// OpenAI model to use when `translation_service` is `openai`.
   final String? openaiModel;
 
+  /// OpenAI-compatible chat-completions URL for `local_llm`.
+  final String? localLlmUrl;
+
+  /// Model identifier served by the local LLM runtime.
+  final String? localLlmModel;
+
+  /// Whether `local_llm` should request JSON response mode.
+  final bool? localLlmJsonMode;
+
+  /// Maximum duration of one local inference request, in seconds.
+  final int? localLlmTimeoutSeconds;
+
   /// Optional context prompt to guide LLM translations.
   final String? translationContext;
 
@@ -126,6 +138,10 @@ class PubspecConfig {
     this.credentialsFile,
     this.quotaProjectId,
     this.openaiModel,
+    this.localLlmUrl,
+    this.localLlmModel,
+    this.localLlmJsonMode,
+    this.localLlmTimeoutSeconds,
     this.translationContext,
     this.translationContextFile,
     this.parallelTranslations,
@@ -190,6 +206,10 @@ class PubspecConfig {
         credentialsFile: config['credentials_file'] as String?,
         quotaProjectId: config['quota_project_id'] as String?,
         openaiModel: config['openai_model'] as String?,
+        localLlmUrl: config['local_llm_url'] as String?,
+        localLlmModel: config['local_llm_model'] as String?,
+        localLlmJsonMode: config['local_llm_json_mode'] as bool?,
+        localLlmTimeoutSeconds: _parsePositiveInt(config['local_llm_timeout_seconds']),
         translationContext: config['translation_context'] as String?,
         translationContextFile: config['translation_context_file'] as String?,
         parallelTranslations: _parsePositiveInt(config['parallel_translations']),
@@ -270,6 +290,10 @@ class PubspecConfig {
         credentialsFile != null ||
         quotaProjectId != null ||
         openaiModel != null ||
+        localLlmUrl != null ||
+        localLlmModel != null ||
+        localLlmJsonMode != null ||
+        localLlmTimeoutSeconds != null ||
         translationContext != null ||
         translationContextFile != null ||
         parallelTranslations != null;
@@ -302,6 +326,10 @@ class PubspecConfig {
         'credentialsFile: $credentialsFile, '
         'quotaProjectId: $quotaProjectId, '
         'openaiModel: $openaiModel, '
+        'localLlmUrl: $localLlmUrl, '
+        'localLlmModel: $localLlmModel, '
+        'localLlmJsonMode: $localLlmJsonMode, '
+        'localLlmTimeoutSeconds: $localLlmTimeoutSeconds, '
         'translationContext: $translationContext, '
         'translationContextFile: $translationContextFile, '
         'parallelTranslations: $parallelTranslations'

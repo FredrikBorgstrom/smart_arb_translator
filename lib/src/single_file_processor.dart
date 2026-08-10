@@ -6,6 +6,7 @@ import 'package:smart_arb_translator/src/dart_code_generator.dart';
 import 'package:smart_arb_translator/src/file_operations.dart';
 import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/models/arb_resource.dart';
+import 'package:smart_arb_translator/src/models/local_llm_options.dart';
 import 'package:smart_arb_translator/src/translation_service.dart';
 import 'package:smart_arb_translator/src/translation_statistics.dart';
 
@@ -103,6 +104,7 @@ class SingleFileProcessor {
     String? quotaProjectId,
     String openaiModel = 'gpt-4o-mini',
     String? translationContext,
+    LocalLlmOptions? localLlmOptions,
     int parallelTranslations = 1,
   }) async {
     dartClassName ??= (l10nMethod == 'gen-l10n') ? 'AppLocalizations' : 'S';
@@ -167,6 +169,7 @@ class SingleFileProcessor {
         quotaProjectId: quotaProjectId,
         openaiModel: openaiModel,
         translationContext: translationContext,
+        localLlmOptions: localLlmOptions,
       );
     }
 
@@ -285,6 +288,7 @@ class SingleFileProcessor {
     String? quotaProjectId,
     String openaiModel = 'gpt-4o-mini',
     String? translationContext,
+    LocalLlmOptions? localLlmOptions,
     int parallelTranslations = 1,
   }) async {
     final sourceArbFile = File(sourceArbPath);
@@ -385,6 +389,7 @@ class SingleFileProcessor {
         quotaProjectId: quotaProjectId,
         openaiModel: openaiModel,
         translationContext: translationContext,
+        localLlmOptions: localLlmOptions,
       );
       final file = await File(outputFilePath).create(recursive: true);
       await file.writeAsString(translatedDocument.encode());
@@ -417,6 +422,7 @@ class SingleFileProcessor {
     required String? quotaProjectId,
     required String openaiModel,
     required String? translationContext,
+    required LocalLlmOptions? localLlmOptions,
   }) async {
     var newArbDocument = existingTranslation?.copyWith(locale: languageCode) ??
         sourceDocument.copyWith(locale: languageCode, resources: {});
@@ -436,6 +442,7 @@ class SingleFileProcessor {
           authMode: authMode,
           credentialsFile: credentialsFile,
           quotaProjectId: quotaProjectId,
+          localLlmOptions: localLlmOptions,
         );
       }).toList();
 

@@ -1,6 +1,6 @@
 # Smart ARB Translator
 
-A command-line utility for translating ARB (Application Resource Bundle) files using Google Translate and OpenAI APIs. This package features smart change detection that only translates messages that have been added or changed. This will keep your translation costs to a minimum. A cost-saving end-to-end solution that translates your messages to Dart classes in the languages of your choice.
+A command-line utility for translating ARB (Application Resource Bundle) files using Google Translate, OpenAI, or a local LLM. This package features smart change detection that only translates messages that have been added or changed. This will keep your translation costs to a minimum. A cost-saving end-to-end solution that translates your messages to Dart classes in the languages of your choice.
 
 ## 🚀 Features
 
@@ -12,7 +12,7 @@ A command-line utility for translating ARB (Application Resource Bundle) files u
 - **📝 Intelligent Setup**: Creates `l10n.yaml` or configures `pubspec.yaml` automatically
 - **🔧 Dart Code Generation**: Generate ready-to-use Dart localization code with either method or simply translate and use your own dart generator
 - **⚙️ Pubspec.yaml Configuration**: Configure all parameters directly in your `pubspec.yaml` file
-- **🆕 Translation Services**: Support for Google Translate v2 (Basic & NMT), Google v3 (LLM), and OpenAI models
+- **🆕 Translation Services**: Support for Google Translate v2 (Basic & NMT), Google v3 (LLM), OpenAI, and local OpenAI-compatible models
 - **🆕 Translation Context**: Optional LLM context prompt (inline or file-based) for domain-specific tone/terminology
 - **🧹 Corrupted Cache Recovery**: Remove only known-bad cached translations from buggy package versions without deleting the whole cache
 - **⚡ Parallel Translation Requests (1.8.0)**: Optionally issue multiple per-language translation calls in parallel to dramatically reduce wall-clock time for projects targeting many locales. Defaults to `1` to preserve the original strictly-sequential behavior.
@@ -64,7 +64,7 @@ The tool will automatically prompt you to configure (hit `ENTER` key for default
 - **Source type**: Directory or single file
 - **Source path**: With smart defaults (lib/l10n_source for directories)
 - **Source locale**: With 'en' as default
-- **Translation service**: Google Basic/NMT (v2), Google LLM (v3), or OpenAI
+- **Translation service**: Google Basic/NMT (v2), Google LLM (v3), OpenAI, or a local LLM
 - **Authentication mode**:
   - `api_key` for v2 (and legacy v3 mode)
   - `adc` for Google LLM with Application Default Credentials
@@ -237,7 +237,34 @@ Optional OpenAI settings:
 - `translation_context`: inline translation guidance
 - `translation_context_file`: path to a text/markdown file with translation context
 
-### 4. ARB File Structure
+### 4. Local LLM
+
+Use `translation_service: local_llm` with any local runtime that exposes an
+OpenAI-compatible chat-completions endpoint. This includes Ollama, LM Studio,
+llama.cpp, and vLLM.
+
+No API key is required. If a self-hosted endpoint requires bearer
+authentication, the existing optional `api_key` setting is sent as a bearer
+token.
+
+Example for Ollama:
+
+```yaml
+smart_arb_translator:
+  translation_service: local_llm
+  local_llm_url: http://127.0.0.1:11434/v1/chat/completions
+  local_llm_model: qwen3.5:27b
+  local_llm_json_mode: true
+  local_llm_timeout_seconds: 600
+  parallel_translations: 1
+```
+
+The local server and configured model must already be available. Smart ARB
+Translator never downloads or selects a model automatically. Keep
+`parallel_translations: 1` unless the local runtime can load and execute
+multiple model requests safely.
+
+### 5. ARB File Structure
 
 Ensure your ARB files follow the standard format:
 
@@ -314,12 +341,16 @@ smart_arb_translator:
   l10n_method: gen-l10n                    # Options: "gen-l10n", "intl_utils", or "none"
   
   # Translation Service Configuration
-  translation_service: openai                # Options: "google_basic" (v2), "google_nmt" (v2), "google_llm" (v3), "openai"
+  translation_service: openai                # Options: "google_basic", "google_nmt", "google_llm", "openai", "local_llm"
   project_id: my-gcp-project-id              # Required for "google_llm"
   auth_mode: api_key                         # Options: "api_key", "adc", "service_account" (openai requires "api_key")
   credentials_file: secrets/service-account.json   # Required when auth_mode=service_account
   quota_project_id: my-billing-project-id    # Optional for OAuth requests (x-goog-user-project)
   openai_model: gpt-4o-mini                  # Optional, used when translation_service=openai
+  # local_llm_url: http://127.0.0.1:11434/v1/chat/completions
+  # local_llm_model: qwen3.5:27b              # Required when translation_service=local_llm
+  # local_llm_json_mode: true                 # Disable for endpoints that reject response_format
+  # local_llm_timeout_seconds: 600            # Local inference can be slower than a hosted API
   translation_context: Keep product terms in English
   translation_context_file: docs/translation_context.md
 
@@ -411,6 +442,25 @@ smart_arb_translator \
   --language_codes es,fr,de
 ```
 
+#### Local LLM with Translation Context
+
+```bash
+smart_arb_translator \
+  --source_dir lib/l10n \
+  --translation_service local_llm \
+  --local_llm_url http://127.0.0.1:11434/v1/chat/completions \
+  --local_llm_model qwen3.5:27b \
+  --translation_context_file docs/translation_context.md \
+  --local_llm_timeout_seconds 600 \
+  --parallel_translations 1 \
+  --language_codes es,fr,de
+```
+
+The URL may also be a server root such as `http://localhost:1234` or an
+OpenAI-style `/v1` base URL; Smart ARB Translator normalizes either form to
+`/v1/chat/completions`. Use `--no-local_llm_json_mode` only when a compatible
+server rejects the `response_format` request field.
+
 ### Command Line Options
 
 All options can be configured in `pubspec.yaml` under the `smart_arb_translator` section. CLI arguments take precedence over pubspec.yaml settings.
@@ -419,7 +469,7 @@ All options can be configured in `pubspec.yaml` under the `smart_arb_translator`
 |--------|-------------|---------|------------------|
 | `--source_dir` | Source directory containing ARB files | - | `source_dir` |
 | `--source_arb` | Single ARB file to translate | - | `source_arb` |
-| `--api_key` | Path to API key file | Required for `google_basic`, `google_nmt`, `openai`, and `google_llm` with `auth_mode=api_key` | `api_key` |
+| `--api_key` | Path to API key file; optional bearer token for `local_llm` | Required for `google_basic`, `google_nmt`, `openai`, and `google_llm` with `auth_mode=api_key` | `api_key` |
 | `--language_codes` | Comma-separated target language codes | `es` | `language_codes` |
 | `--cache_directory` | Directory for translation cache | `lib/l10n_cache` | `cache_directory` |
 | `--l10n_directory` | Output directory for merged files | `lib/l10n` | `l10n_directory` |
@@ -431,12 +481,16 @@ All options can be configured in `pubspec.yaml` under the `smart_arb_translator`
 | `--dart_main_locale` | Main locale for Dart code generation | `en` | `dart_main_locale` |
 | `--auto_approve` | Auto-approve configuration changes | `false` | `auto_approve` |
 | `--use_deferred_loading` | Enable deferred loading for locales (Flutter Web optimization) | `false` | `use_deferred_loading` |
-| `--translation_service` | Translation service: `google_basic`, `google_nmt`, `google_llm`, or `openai` | `google_basic` | `translation_service` |
+| `--translation_service` | Translation service: `google_basic`, `google_nmt`, `google_llm`, `openai`, or `local_llm` | `google_basic` | `translation_service` |
 | `--project_id` | Google Cloud Project ID (required for `google_llm`) | - | `project_id` |
 | `--auth_mode` | Auth mode: `api_key`, `adc`, or `service_account` | `api_key` | `auth_mode` |
 | `--credentials_file` | Path to service account JSON key file (required for `service_account`) | - | `credentials_file` |
 | `--quota_project_id` | Optional quota/billing project id for OAuth requests | - | `quota_project_id` |
 | `--openai_model` | OpenAI model to use when `translation_service=openai` | `gpt-4o-mini` | `openai_model` |
+| `--local_llm_url` | OpenAI-compatible local chat-completions endpoint or base URL | `http://127.0.0.1:11434/v1/chat/completions` | `local_llm_url` |
+| `--local_llm_model` | Model identifier exposed by the local runtime; required for `local_llm` | - | `local_llm_model` |
+| `--[no-]local_llm_json_mode` | Request JSON mode through `response_format` | `true` | `local_llm_json_mode` |
+| `--local_llm_timeout_seconds` | Timeout for one local inference request | `600` | `local_llm_timeout_seconds` |
 | `--translation_context` | Optional context text for LLM translation style/tone | - | `translation_context` |
 | `--translation_context_file` | Optional file with context text for LLM translations | - | `translation_context_file` |
 | `--parallel_translations` | Maximum number of per-language translation requests sent in parallel for a single source ARB file. Higher values speed up large language lists at the cost of more concurrent requests against the translation provider. | `1` | `parallel_translations` |
@@ -626,6 +680,7 @@ The `parallel_translations` option (CLI: `--parallel_translations`, pubspec key:
 - ⚠️ You're hitting strict provider rate limits (e.g. low free-tier OpenAI accounts).
 - ⚠️ You need fully deterministic, ordered log output across language batches.
 - ⚠️ You depend on side effects between languages (the implementation is side-effect-free per language, but if you've forked the package and added stateful work, sequential execution may be safer).
+- ⚠️ You use a local LLM that cannot execute multiple generations concurrently without memory pressure or severe slowdown.
 
 #### Recommended values
 

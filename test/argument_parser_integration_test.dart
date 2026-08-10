@@ -308,5 +308,34 @@ smart_arb_translator:
       expect(result[ArbTranslatorArgumentParser.translationContext], equals('Use casual tone'));
       expect(result[ArbTranslatorArgumentParser.translationContextFile], equals('style_guide.txt'));
     });
+
+    test('should support a local LLM from pubspec without an API key', () async {
+      tempPubspec.writeAsStringSync('''
+name: test_app
+version: 1.0.0
+
+smart_arb_translator:
+  source_dir: lib/l10n
+  translation_service: local_llm
+  local_llm_url: http://127.0.0.1:11434/v1
+  local_llm_model: qwen2.5:32b
+  local_llm_json_mode: false
+  local_llm_timeout_seconds: 900
+''');
+
+      final result = await ArbTranslatorArgumentParser.parseArguments([]);
+
+      expect(result[ArbTranslatorArgumentParser.translationService], equals('local_llm'));
+      expect(result[ArbTranslatorArgumentParser.apiKey], isNull);
+      expect(result[ArbTranslatorArgumentParser.localLlmUrl], equals('http://127.0.0.1:11434/v1'));
+      expect(result[ArbTranslatorArgumentParser.localLlmModel], equals('qwen2.5:32b'));
+      expect(result[ArbTranslatorArgumentParser.localLlmJsonMode], isFalse);
+      expect(
+        ArbTranslatorArgumentParser.parseLocalLlmTimeoutSeconds(
+          result[ArbTranslatorArgumentParser.localLlmTimeoutSeconds],
+        ),
+        equals(900),
+      );
+    });
   });
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:smart_arb_translator/src/models/arb_document.dart';
+import 'package:smart_arb_translator/src/models/local_llm_options.dart';
 import 'package:smart_arb_translator/src/translation_service.dart';
 import 'package:test/test.dart';
 
@@ -172,6 +173,83 @@ void main() {
           translateList: ['Hello'],
           parameters: {'target': 'es'},
           translationService: 'openai',
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('translateTexts uses a local OpenAI-compatible LLM without an API key', () async {
+      final options = LocalLlmOptions.fromConfig(
+        endpoint: 'http://127.0.0.1:11434/v1',
+        model: 'qwen2.5:32b',
+      );
+      final mockClient = MockClient((request) async {
+        expect(request.url.toString(), 'http://127.0.0.1:11434/v1/chat/completions');
+        expect(request.headers['authorization'], isNull);
+
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['model'], 'qwen2.5:32b');
+        expect(body['temperature'], 0);
+        expect(body['response_format'], {'type': 'json_object'});
+
+        final messages = List<Map<String, dynamic>>.from(body['messages'] as List<dynamic>);
+        expect(messages[0]['content'] as String, contains('mobile UI actions'));
+        final userPayload = jsonDecode(messages[1]['content'] as String) as Map<String, dynamic>;
+        expect(userPayload['target_language'], 'fr');
+        expect(userPayload['texts'], ['Clear']);
+
+        return http.Response(
+          '{"choices":[{"message":{"content":"{\\"translations\\":[\\"Effacer\\"]}"}}]}',
+          200,
+        );
+      });
+
+      final result = await TranslationService.translateTexts(
+        translateList: ['Clear'],
+        parameters: {
+          'target': 'fr',
+          'translation_context': 'Use imperative verbs for mobile UI actions.',
+        },
+        translationService: 'local_llm',
+        localLlmOptions: options,
+        client: mockClient,
+      );
+
+      expect(result, ['Effacer']);
+    });
+
+    test('local LLM can omit response_format for limited compatibility servers', () async {
+      final options = LocalLlmOptions.fromConfig(
+        endpoint: 'http://localhost:1234/v1/chat/completions',
+        model: 'local-model',
+        jsonMode: false,
+      );
+      final mockClient = MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body.containsKey('response_format'), isFalse);
+        return http.Response(
+          '{"choices":[{"message":{"content":"```json\\n{\\"translations\\":[\\"Retour\\"]}\\n```"}}]}',
+          200,
+        );
+      });
+
+      final result = await TranslationService.translateTexts(
+        translateList: ['Back'],
+        parameters: {'target': 'fr'},
+        translationService: 'local_llm',
+        localLlmOptions: options,
+        client: mockClient,
+      );
+
+      expect(result, ['Retour']);
+    });
+
+    test('translateTexts requires local LLM options for local_llm', () async {
+      expect(
+        () => TranslationService.translateTexts(
+          translateList: ['Hello'],
+          parameters: {'target': 'fr'},
+          translationService: 'local_llm',
         ),
         throwsArgumentError,
       );

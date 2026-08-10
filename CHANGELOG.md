@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Add `translation_service: local_llm` for OpenAI-compatible local runtimes such as Ollama, LM Studio, llama.cpp, and vLLM.
+- Add `local_llm_url`, `local_llm_model`, `local_llm_json_mode`, and `local_llm_timeout_seconds` configuration through both `pubspec.yaml` and CLI options.
+- Reuse the chat-LLM context prompt, strict JSON parsing, retry, per-item fallback, and ARB placeholder protection for local inference.
+- Allow local inference with no API key while retaining optional bearer-token authentication for secured self-hosted endpoints.
+
+### Changed
+
+- Generalize the OpenAI chat-completions implementation so hosted OpenAI and local OpenAI-compatible providers share the same validation behavior.
+
 ## [1.8.2] - 2026-06-25
 
 ### Fixed
