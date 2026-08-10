@@ -289,6 +289,27 @@ not reviewed translations.
 Consumers can pass `passthroughAllowlist` with an ARB key or literal
 brand/technical token such as `ABCx3` when it is intentionally unchanged.
 
+Before a manual-only merge, validate every English/reviewed feature pair with
+the zero-network quality driver:
+
+```bash
+dart run tool/reviewed_overlay_quality.dart \
+  --source-dir lib/l10n_source/en \
+  --reviewed-dir lib/l10n_reviewed \
+  --allowlist-file tool/localization/passthrough_allowlist.json
+```
+
+The optional allowlist is a JSON array, or an object whose `entries`, `keys`,
+`literals`, or `global` arrays contain explicitly reviewed exceptions. Use a
+`locales` object of locale-to-array entries for natural cognates or technical
+text that is valid only in a specific target locale. These exceptions suppress
+only passthrough/mixed-script findings for the named key or exact value; they
+never suppress ownership, ICU, placeholder, commentary, or empty-value errors.
+The command checks
+feature/key ownership, locale declarations, ARB/ICU syntax, placeholders,
+plural/select structure, empty values, commentary, source passthrough, scripts,
+and length without constructing a translation service or making an HTTP call.
+
 The local server and configured model must already be available. Smart ARB
 Translator never downloads or selects a model automatically. Keep
 `parallel_translations: 1` unless the local runtime can load and execute

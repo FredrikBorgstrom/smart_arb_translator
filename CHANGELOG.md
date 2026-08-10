@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add structured reviewed-overlay validation, offline/manual coverage, provider-safe provenance fingerprints, deterministic ARB/ICU validators, Google LLM resource identity labels, and the `translategemma` local profile without changing the package version.
 - Add scoped/inspection controls: `--locale`, `--source_file`, `--key`, `--validate_only`, `--merge_reviewed_only`, `--offline`, `--list_stale_reviewed`, and `--dry_run_network_plan`.
 - Add the explicitly invoked `tool/local_model_benchmark.dart` runner for sequential, no-fallback local-model corpus evaluation.
+- Add a zero-network reviewed-overlay directory quality driver for final manual-only validation.
 - Add `translation_service: local_llm` for OpenAI-compatible local runtimes such as Ollama, LM Studio, llama.cpp, and vLLM.
 - Add `local_llm_url`, `local_llm_model`, `local_llm_json_mode`, and `local_llm_timeout_seconds` configuration through both `pubspec.yaml` and CLI options.
 - Reuse the chat-LLM context prompt, strict JSON parsing, retry, per-item fallback, and ARB placeholder protection for local inference.
