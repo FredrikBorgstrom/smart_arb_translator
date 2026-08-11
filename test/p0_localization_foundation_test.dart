@@ -242,7 +242,12 @@ void main() {
               200,
             )),
       );
-      expect(File('${temp.path}/intl_fr.arb.provenance.json').existsSync(), isTrue);
+      final provenanceFile = File('${temp.path}/intl_fr.arb.provenance.json');
+      expect(provenanceFile.existsSync(), isTrue);
+      final provenance = jsonDecode(provenanceFile.readAsStringSync()) as Map<String, dynamic>;
+      final backProvenance = provenance['back'] as Map<String, dynamic>;
+      expect(backProvenance['contextFingerprint'], isNotEmpty);
+      expect(backProvenance, isNot(contains('translationContext')));
       var calls = 0;
       await expectLater(
         () => SingleFileProcessor.processSingleFileWithChanges(

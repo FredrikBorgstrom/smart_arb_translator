@@ -470,7 +470,6 @@ class SingleFileProcessor {
         'endpointClass': endpointClass,
         'model': model,
         'promptVersion': TranslationFingerprint.algorithmVersion,
-        'translationContext': translationContext ?? '',
         'sourceTopic': sourceTopic,
         'placeholderMetadata': resource.placeholders,
         'glossary': resource.glossary,
