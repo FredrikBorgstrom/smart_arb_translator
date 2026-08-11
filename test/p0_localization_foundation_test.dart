@@ -148,7 +148,7 @@ void main() {
       addTearDown(() => temp.delete(recursive: true));
       final source = File('${temp.path}/ui.arb')
         ..writeAsStringSync(
-            '''{"@@locale":"en","clear":"Clear","@clear":{"description":"Imperative button action."}}''');
+            '''{"@@locale":"en","clear":"Clear","@clear":{"description":"Imperative button action.","x-translations":{"fr":"Ancienne traduction"}}}''');
       final document = ArbDocument.decode(source.readAsStringSync());
       final resource = TranslationResource.fromArbResource(document.resources['clear']!, sourceTopic: 'ui.arb');
       final reviewDir = Directory('${temp.path}/reviewed/fr')..createSync(recursive: true);

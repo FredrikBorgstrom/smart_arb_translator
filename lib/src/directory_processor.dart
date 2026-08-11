@@ -7,6 +7,7 @@ import 'package:path/path.dart' as path;
 import 'package:smart_arb_translator/src/dart_code_generator.dart';
 import 'package:smart_arb_translator/src/file_operations.dart' as translator_file_ops;
 import 'package:smart_arb_translator/src/models/arb_document.dart';
+import 'package:smart_arb_translator/src/models/arb_resource.dart';
 import 'package:smart_arb_translator/src/models/local_llm_options.dart';
 import 'package:smart_arb_translator/src/single_file_processor.dart';
 import 'package:smart_arb_translator/src/translation_statistics.dart';
@@ -169,8 +170,16 @@ class DirectoryProcessor {
     final workingSourcePath = copiedSourceDir.path;
 
     // Find all ARB files recursively
-    final arbFiles = (await translator_file_ops.FileOperations.findArbFiles(sourceDir))
+    final allArbFiles = (await translator_file_ops.FileOperations.findArbFiles(sourceDir))
         .where((file) => !_isGeneratedLocaleMergeFile(file.path))
+        .toList(growable: false)
+      ..sort(
+        (left, right) => path
+            .relative(left.path, from: workingSourcePath)
+            .compareTo(path.relative(right.path, from: workingSourcePath)),
+      );
+    final authoritativeSourceKeys = _authoritativeSourceKeys(allArbFiles);
+    final arbFiles = allArbFiles
         .where((file) => sourceFileFilters == null || sourceFileFilters.contains(path.basename(file.path)))
         .toList(growable: false);
     if (arbFiles.isEmpty) {
@@ -217,6 +226,13 @@ class DirectoryProcessor {
         resourceKeyFilter: resourceKeyFilter,
       );
     }
+
+    _pruneCombinedLocaleCaches(
+      outputPath: effectiveOutputPath,
+      languageCodes: translationLanguageCodes,
+      outputFileName: outputFileName,
+      authoritativeSourceKeys: authoritativeSourceKeys,
+    );
 
     // Merge all language files to l10n directory
     await mergeToL10nDirectory(
@@ -467,6 +483,7 @@ class DirectoryProcessor {
         localLlmOptions: localLlmOptions,
         reviewedTranslationsDir: reviewedTranslationsDir,
         manualOnly: manualOnly,
+        preserveUnrelatedExistingResources: true,
         resourceKeyFilter: resourceKeyFilter,
       );
     }
@@ -476,18 +493,73 @@ class DirectoryProcessor {
     }
   }
 
-  /// Builds the per-language output file name following the legacy convention.
+  static Set<String> _authoritativeSourceKeys(List<File> sourceFiles) {
+    final owners = <String, String>{};
+    for (final file in sourceFiles) {
+      final document = ArbDocument.decode(file.readAsStringSync());
+      for (final key in document.resources.keys) {
+        final previousOwner = owners[key];
+        if (previousOwner != null) {
+          throw FormatException('Duplicate ARB resource key "$key" in $previousOwner and ${file.path}.');
+        }
+        owners[key] = file.path;
+      }
+    }
+    return owners.keys.toSet();
+  }
+
+  static void _pruneCombinedLocaleCaches({
+    required String outputPath,
+    required List<String> languageCodes,
+    required String outputFileName,
+    required Set<String> authoritativeSourceKeys,
+  }) {
+    for (final languageCode in languageCodes) {
+      final localeDirectory = Directory(path.join(outputPath, languageCode));
+      if (!localeDirectory.existsSync()) continue;
+      final aggregateName = _resolveLanguageOutputFileName(
+        outputFileName: outputFileName,
+        languageCode: languageCode,
+        fileExt: '.arb',
+      );
+      final aggregate = File(path.join(localeDirectory.path, aggregateName));
+      if (!aggregate.existsSync()) {
+        throw FormatException('Missing combined locale cache after directory processing: ${aggregate.path}');
+      }
+      final document = ArbDocument.decode(aggregate.readAsStringSync());
+      final filtered = <String, ArbResource>{
+        for (final entry in document.resources.entries)
+          if (authoritativeSourceKeys.contains(entry.key)) entry.key: entry.value,
+      };
+      aggregate.writeAsStringSync(
+        document.copyWith(resources: filtered).encode(),
+      );
+      final provenance = File('${aggregate.path}.provenance.json');
+      if (provenance.existsSync()) {
+        final decoded = jsonDecode(provenance.readAsStringSync());
+        if (decoded is! Map) throw FormatException('Invalid cache provenance: ${provenance.path}');
+        final current = Map<String, dynamic>.from(decoded);
+        current.removeWhere((key, _) => !authoritativeSourceKeys.contains(key));
+        provenance.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(current));
+      }
+      for (final file in localeDirectory.listSync(recursive: true).whereType<File>()) {
+        if (!file.path.endsWith('.arb') || path.equals(file.path, aggregate.path)) continue;
+        file.deleteSync();
+        final chunkProvenance = File('${file.path}.provenance.json');
+        if (chunkProvenance.existsSync()) chunkProvenance.deleteSync();
+      }
+    }
+  }
+
+  /// Builds the per-language aggregate cache name following the legacy
+  /// convention expected by cache cleanup and existing consumers.
   static String _resolveLanguageOutputFileName({
     required String outputFileName,
     required String languageCode,
     required String fileExt,
   }) {
-    if (outputFileName.isEmpty) {
-      return '$languageCode$fileExt';
-    }
-    if (outputFileName.endsWith('_')) {
-      return '$outputFileName$languageCode$fileExt';
-    }
+    if (outputFileName.isEmpty) return '$languageCode$fileExt';
+    if (outputFileName.endsWith('_')) return '$outputFileName$languageCode$fileExt';
     return '${outputFileName}_$languageCode$fileExt';
   }
 

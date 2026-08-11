@@ -192,6 +192,7 @@ class SingleFileProcessor {
         localLlmOptions: localLlmOptions,
         reviewedTranslationsDir: reviewedTranslationsDir,
         manualOnly: manualOnly,
+        preserveUnrelatedExistingResources: false,
         client: client,
         resourceKeyFilter: resourceKeyFilter,
       );
@@ -322,6 +323,7 @@ class SingleFileProcessor {
     int parallelTranslations = 1,
     String? reviewedTranslationsDir,
     bool manualOnly = false,
+    bool preserveUnrelatedExistingResources = false,
     http.Client? client,
     Set<String>? resourceKeyFilter,
   }) async {
@@ -366,6 +368,7 @@ class SingleFileProcessor {
         localLlmOptions: localLlmOptions,
         reviewedTranslationsDir: reviewedTranslationsDir,
         manualOnly: manualOnly,
+        preserveUnrelatedExistingResources: preserveUnrelatedExistingResources,
         client: client,
         resourceKeyFilter: resourceKeyFilter,
       );
@@ -396,6 +399,7 @@ class SingleFileProcessor {
     required LocalLlmOptions? localLlmOptions,
     required String? reviewedTranslationsDir,
     required bool manualOnly,
+    required bool preserveUnrelatedExistingResources,
     required http.Client? client,
     required Set<String>? resourceKeyFilter,
   }) async {
@@ -436,10 +440,13 @@ class SingleFileProcessor {
         model: model,
       );
       final override = sourceDocument.resources[resource.id]!.attributes?.xTranslations?[languageCode];
-      if (override is String && override.trim().isNotEmpty) {
-        resolved[resource.id] = override;
-      } else if (reviewed.translations.containsKey(resource.id)) {
+      // A current reviewed overlay is the authoritative target. Embedded
+      // x-translations are useful bootstrap input, but must not overwrite a
+      // later independently reviewed correction.
+      if (reviewed.translations.containsKey(resource.id)) {
         resolved[resource.id] = reviewed.translations[resource.id]!;
+      } else if (override is String && override.trim().isNotEmpty) {
+        resolved[resource.id] = override;
       } else {
         final record = previousProvenance[resource.id];
         final cached = existingTranslation?.resources[resource.id]?.text;
@@ -520,6 +527,7 @@ class SingleFileProcessor {
         }
         if (legacyGoogleResources.isEmpty) {
           final output = <String, ArbResource>{
+            if (preserveUnrelatedExistingResources) ...?existingTranslation?.resources,
             for (final entry in sourceDocument.resources.entries)
               entry.key: entry.value.copyWith(
                 text: resolved[entry.key] ?? existingTranslation?.resources[entry.key]?.text ?? entry.value.text,
@@ -568,6 +576,7 @@ class SingleFileProcessor {
       }
     }
     final output = <String, ArbResource>{
+      if (preserveUnrelatedExistingResources) ...?existingTranslation?.resources,
       for (final entry in sourceDocument.resources.entries)
         entry.key: entry.value.copyWith(
           text: resolved[entry.key] ?? existingTranslation?.resources[entry.key]?.text ?? entry.value.text,
