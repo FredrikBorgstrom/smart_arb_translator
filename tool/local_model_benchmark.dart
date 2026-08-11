@@ -34,6 +34,16 @@ Future<int> runLocalModelBenchmarkCli(
         help: 'openai_chat_json or translategemma.',
         allowed: ['openai_chat_json', 'translategemma'],
         defaultsTo: 'openai_chat_json')
+    ..addOption(
+      'max-output-tokens',
+      help: 'Maximum completion tokens returned by one local request.',
+      defaultsTo: LocalLlmOptions.defaultMaxOutputTokens.toString(),
+    )
+    ..addOption(
+      'reasoning-effort',
+      help: 'Optional local reasoning control.',
+      allowed: ['none', 'low', 'medium', 'high'],
+    )
     ..addMultiOption('locale', help: 'Locale(s) selected from the corpus.')
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show this help.');
   late ArgResults result;
@@ -57,10 +67,16 @@ Future<int> runLocalModelBenchmarkCli(
     final input = File(result['input'] as String);
     if (!input.existsSync()) throw ArgumentError('Benchmark input does not exist: ${input.path}');
     final corpus = LocalModelBenchmarkCorpus.decode(input.readAsStringSync());
+    final maxOutputTokens = int.tryParse(result['max-output-tokens'] as String);
+    if (maxOutputTokens == null || maxOutputTokens < 1) {
+      throw ArgumentError('--max-output-tokens must be a positive integer.');
+    }
     final options = LocalLlmOptions.fromConfig(
       endpoint: result['endpoint'] as String,
       model: result['model'] as String,
       profile: result['profile'] as String,
+      maxOutputTokens: maxOutputTokens,
+      reasoningEffort: result['reasoning-effort'] as String?,
     );
     final runner = benchmarkRunner ?? LocalModelBenchmarkRunner.run;
     final output = await runner(

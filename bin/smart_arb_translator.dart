@@ -132,6 +132,10 @@ void main(List<String> args) async {
           timeoutSeconds: ArbTranslatorArgumentParser.parseLocalLlmTimeoutSeconds(
             result[ArbTranslatorArgumentParser.localLlmTimeoutSeconds],
           ),
+          maxOutputTokens: ArbTranslatorArgumentParser.parseLocalLlmMaxOutputTokens(
+            result[ArbTranslatorArgumentParser.localLlmMaxOutputTokens],
+          ),
+          reasoningEffort: result[ArbTranslatorArgumentParser.localLlmReasoningEffort] as String?,
           profile: result[ArbTranslatorArgumentParser.localLlmProfile] as String? ?? 'openai_chat_json',
         )
       : null;

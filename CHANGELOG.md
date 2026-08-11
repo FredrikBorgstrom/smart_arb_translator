@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add structured reviewed-overlay validation, offline/manual coverage, provider-safe provenance fingerprints, deterministic ARB/ICU validators, Google LLM resource identity labels, and the `translategemma` local profile without changing the package version.
+- Bound local-model completions with a configurable token ceiling and optional reasoning-effort control so reasoning models return deterministic translation payloads instead of running until timeout.
 - Add scoped/inspection controls: `--locale`, `--source_file`, `--key`, `--validate_only`, `--merge_reviewed_only`, `--offline`, `--list_stale_reviewed`, and `--dry_run_network_plan`.
 - Add the explicitly invoked `tool/local_model_benchmark.dart` runner for sequential, no-fallback local-model corpus evaluation.
 - Add a zero-network reviewed-overlay directory quality driver for final manual-only validation.

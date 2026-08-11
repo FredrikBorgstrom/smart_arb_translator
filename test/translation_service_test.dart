@@ -138,6 +138,8 @@ void main() {
 
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['model'], 'gpt-4.1-mini');
+        expect(body.containsKey('max_tokens'), isFalse);
+        expect(body.containsKey('reasoning_effort'), isFalse);
         expect((body['response_format'] as Map<String, dynamic>)['type'], 'json_object');
 
         final messages = List<Map<String, dynamic>>.from(body['messages'] as List<dynamic>);
@@ -182,6 +184,8 @@ void main() {
       final options = LocalLlmOptions.fromConfig(
         endpoint: 'http://127.0.0.1:11434/v1',
         model: 'qwen2.5:32b',
+        maxOutputTokens: 640,
+        reasoningEffort: 'none',
       );
       final mockClient = MockClient((request) async {
         expect(request.url.toString(), 'http://127.0.0.1:11434/v1/chat/completions');
@@ -190,6 +194,8 @@ void main() {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['model'], 'qwen2.5:32b');
         expect(body['temperature'], 0);
+        expect(body['max_tokens'], 640);
+        expect(body['reasoning_effort'], 'none');
         expect(body['response_format'], {'type': 'json_object'});
 
         final messages = List<Map<String, dynamic>>.from(body['messages'] as List<dynamic>);

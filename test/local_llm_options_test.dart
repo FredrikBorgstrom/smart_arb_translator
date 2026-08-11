@@ -13,6 +13,8 @@ void main() {
         options.endpoint.toString(),
         'http://localhost:1234/v1/chat/completions',
       );
+      expect(options.maxOutputTokens, LocalLlmOptions.defaultMaxOutputTokens);
+      expect(options.reasoningEffort, isNull);
     });
 
     test('preserves a custom OpenAI-compatible endpoint path', () {
@@ -39,6 +41,34 @@ void main() {
         () => LocalLlmOptions.fromConfig(
           endpoint: 'file:///tmp/model.sock',
           model: 'model-name',
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('normalizes local output and reasoning controls', () {
+      final options = LocalLlmOptions.fromConfig(
+        model: 'reasoning-model',
+        maxOutputTokens: 512,
+        reasoningEffort: ' NONE ',
+      );
+
+      expect(options.maxOutputTokens, 512);
+      expect(options.reasoningEffort, 'none');
+    });
+
+    test('rejects invalid output and reasoning controls', () {
+      expect(
+        () => LocalLlmOptions.fromConfig(
+          model: 'reasoning-model',
+          maxOutputTokens: 0,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => LocalLlmOptions.fromConfig(
+          model: 'reasoning-model',
+          reasoningEffort: 'maximum',
         ),
         throwsArgumentError,
       );

@@ -188,6 +188,8 @@ class LocalModelBenchmarkRunner {
         'translation_service': 'local_llm',
         'model': options.model,
         'profile': options.profile.name == 'openaiChatJson' ? 'openai_chat_json' : 'translategemma',
+        'max_output_tokens': options.maxOutputTokens,
+        if (options.reasoningEffort != null) 'reasoning_effort': options.reasoningEffort,
         'endpoint_class': '${options.endpoint.scheme}://${options.endpoint.host}',
         'parallel_translations': 1,
         'fallback': 'none',

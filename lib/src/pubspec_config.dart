@@ -99,6 +99,12 @@ class PubspecConfig {
   /// Maximum duration of one local inference request, in seconds.
   final int? localLlmTimeoutSeconds;
 
+  /// Maximum completion tokens returned by a local model request.
+  final int? localLlmMaxOutputTokens;
+
+  /// Optional OpenAI-compatible reasoning control for local models.
+  final String? localLlmReasoningEffort;
+
   final String? localLlmProfile;
 
   /// Optional context prompt to guide LLM translations.
@@ -150,6 +156,8 @@ class PubspecConfig {
     this.localLlmModel,
     this.localLlmJsonMode,
     this.localLlmTimeoutSeconds,
+    this.localLlmMaxOutputTokens,
+    this.localLlmReasoningEffort,
     this.localLlmProfile,
     this.translationContext,
     this.translationContextFile,
@@ -223,6 +231,10 @@ class PubspecConfig {
         localLlmTimeoutSeconds: _parsePositiveInt(
           config['local_llm_timeout_seconds'],
         ),
+        localLlmMaxOutputTokens: _parsePositiveInt(
+          config['local_llm_max_output_tokens'],
+        ),
+        localLlmReasoningEffort: config['local_llm_reasoning_effort'] as String?,
         localLlmProfile: config['local_llm_profile'] as String?,
         translationContext: config['translation_context'] as String?,
         translationContextFile: config['translation_context_file'] as String?,
@@ -312,6 +324,8 @@ class PubspecConfig {
         localLlmModel != null ||
         localLlmJsonMode != null ||
         localLlmTimeoutSeconds != null ||
+        localLlmMaxOutputTokens != null ||
+        localLlmReasoningEffort != null ||
         localLlmProfile != null ||
         translationContext != null ||
         translationContextFile != null ||
@@ -351,6 +365,8 @@ class PubspecConfig {
         'localLlmModel: $localLlmModel, '
         'localLlmJsonMode: $localLlmJsonMode, '
         'localLlmTimeoutSeconds: $localLlmTimeoutSeconds, '
+        'localLlmMaxOutputTokens: $localLlmMaxOutputTokens, '
+        'localLlmReasoningEffort: $localLlmReasoningEffort, '
         'translationContext: $translationContext, '
         'translationContextFile: $translationContextFile, '
         'parallelTranslations: $parallelTranslations'

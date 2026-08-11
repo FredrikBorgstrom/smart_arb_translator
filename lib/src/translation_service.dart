@@ -205,6 +205,8 @@ class TranslationService {
       apiKey: apiKey == null || apiKey.isEmpty ? null : apiKey,
       jsonMode: translationService == 'openai' || localLlmOptions!.jsonMode,
       timeout: translationService == 'openai' ? null : localLlmOptions!.timeout,
+      maxOutputTokens: translationService == 'openai' ? null : localLlmOptions!.maxOutputTokens,
+      reasoningEffort: translationService == 'openai' ? null : localLlmOptions!.reasoningEffort,
       client: client,
       allowPerItemFallback: allowPerItemFallback,
     );
@@ -255,6 +257,8 @@ class TranslationService {
           body: <String, dynamic>{
             'model': options.model,
             'temperature': 0,
+            'max_tokens': options.maxOutputTokens,
+            if (options.reasoningEffort != null) 'reasoning_effort': options.reasoningEffort,
             'messages': [
               {'role': 'user', 'content': prompt.toString().trim()},
             ],
@@ -486,6 +490,8 @@ class TranslationService {
       apiKey: apiKey == null || apiKey.isEmpty ? null : apiKey,
       jsonMode: options.jsonMode,
       timeout: options.timeout,
+      maxOutputTokens: options.maxOutputTokens,
+      reasoningEffort: options.reasoningEffort,
       client: client,
       allowPerItemFallback: allowPerItemFallback,
     );
@@ -503,6 +509,8 @@ class TranslationService {
     required bool allowPerItemFallback,
     List<TranslationResource>? resources,
     Duration? timeout,
+    int? maxOutputTokens,
+    String? reasoningEffort,
   }) async {
     final targetLanguage = (parameters['target'] as String?)?.trim();
     if (targetLanguage == null || targetLanguage.isEmpty) {
@@ -529,6 +537,8 @@ class TranslationService {
               expectedCount: translateList.length,
               strictRetryMode: attempt > 0,
               includeResponseFormat: jsonMode,
+              maxOutputTokens: maxOutputTokens,
+              reasoningEffort: reasoningEffort,
               resources: resources,
             ),
             client: client,
@@ -581,6 +591,8 @@ class TranslationService {
           apiKey: apiKey,
           jsonMode: jsonMode,
           timeout: timeout,
+          maxOutputTokens: maxOutputTokens,
+          reasoningEffort: reasoningEffort,
           client: client,
           resources: resources,
         );
@@ -674,6 +686,8 @@ class TranslationService {
     required int expectedCount,
     required bool strictRetryMode,
     required bool includeResponseFormat,
+    int? maxOutputTokens,
+    String? reasoningEffort,
     List<TranslationResource>? resources,
   }) {
     final systemPrompt = StringBuffer()
@@ -753,6 +767,12 @@ class TranslationService {
     };
     if (includeResponseFormat) {
       body['response_format'] = {'type': 'json_object'};
+    }
+    if (maxOutputTokens != null) {
+      body['max_tokens'] = maxOutputTokens;
+    }
+    if (reasoningEffort != null) {
+      body['reasoning_effort'] = reasoningEffort;
     }
     return body;
   }
@@ -900,6 +920,8 @@ class TranslationService {
     required String? apiKey,
     required bool jsonMode,
     required Duration? timeout,
+    required int? maxOutputTokens,
+    required String? reasoningEffort,
     required http.Client? client,
     List<TranslationResource>? resources,
   }) async {
@@ -916,6 +938,8 @@ class TranslationService {
           apiKey: apiKey,
           jsonMode: jsonMode,
           timeout: timeout,
+          maxOutputTokens: maxOutputTokens,
+          reasoningEffort: reasoningEffort,
           client: client,
           allowPerItemFallback: false,
           resources: resources == null ? null : [resources[index]],

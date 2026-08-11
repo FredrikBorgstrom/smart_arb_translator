@@ -26,6 +26,11 @@ class LocalLlmOptions {
   /// Default time allowed for a local model to complete one translation batch.
   static const int defaultTimeoutSeconds = 600;
 
+  /// Default response ceiling. Local reasoning models can otherwise continue
+  /// producing hidden reasoning until the HTTP timeout instead of returning
+  /// the requested translation payload.
+  static const int defaultMaxOutputTokens = 2048;
+
   /// Exact endpoint used for chat-completions requests.
   final Uri endpoint;
 
@@ -38,6 +43,13 @@ class LocalLlmOptions {
   /// Maximum duration of a single local inference request.
   final Duration timeout;
 
+  /// Maximum completion tokens accepted from the local runtime.
+  final int maxOutputTokens;
+
+  /// Optional OpenAI-compatible reasoning control. Keep this nullable because
+  /// not every compatible runtime accepts the extension.
+  final String? reasoningEffort;
+
   /// Prompt/response protocol for the local model family.
   final LocalLlmProfile profile;
 
@@ -46,6 +58,8 @@ class LocalLlmOptions {
     required this.model,
     this.jsonMode = true,
     this.timeout = const Duration(seconds: defaultTimeoutSeconds),
+    this.maxOutputTokens = defaultMaxOutputTokens,
+    this.reasoningEffort,
     this.profile = LocalLlmProfile.openaiChatJson,
   });
 
@@ -55,6 +69,8 @@ class LocalLlmOptions {
     required String model,
     bool jsonMode = true,
     int timeoutSeconds = defaultTimeoutSeconds,
+    int maxOutputTokens = defaultMaxOutputTokens,
+    String? reasoningEffort,
     String profile = 'openai_chat_json',
   }) {
     final normalizedModel = model.trim();
@@ -88,12 +104,32 @@ class LocalLlmOptions {
         'The local LLM timeout must be at least one second.',
       );
     }
+    if (maxOutputTokens < 1) {
+      throw ArgumentError.value(
+        maxOutputTokens,
+        'maxOutputTokens',
+        'The local LLM output-token limit must be at least one.',
+      );
+    }
+    final normalizedReasoningEffort = reasoningEffort?.trim().toLowerCase();
+    if (normalizedReasoningEffort != null &&
+        normalizedReasoningEffort.isNotEmpty &&
+        !const {'none', 'low', 'medium', 'high'}.contains(normalizedReasoningEffort)) {
+      throw ArgumentError.value(
+        reasoningEffort,
+        'reasoningEffort',
+        'Supported values: none, low, medium, high.',
+      );
+    }
 
     return LocalLlmOptions(
       endpoint: normalizedEndpoint,
       model: normalizedModel,
       jsonMode: jsonMode,
       timeout: Duration(seconds: timeoutSeconds),
+      maxOutputTokens: maxOutputTokens,
+      reasoningEffort:
+          normalizedReasoningEffort == null || normalizedReasoningEffort.isEmpty ? null : normalizedReasoningEffort,
       profile: LocalLlmProfile.parse(profile),
     );
   }

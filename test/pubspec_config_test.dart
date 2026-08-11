@@ -107,6 +107,8 @@ smart_arb_translator:
   local_llm_model: qwen2.5:32b
   local_llm_json_mode: false
   local_llm_timeout_seconds: 900
+  local_llm_max_output_tokens: 768
+  local_llm_reasoning_effort: none
   translation_context: Keep product names in English
   translation_context_file: docs/translation_context.md
 ''');
@@ -138,6 +140,8 @@ smart_arb_translator:
       expect(config.localLlmModel, equals('qwen2.5:32b'));
       expect(config.localLlmJsonMode, isFalse);
       expect(config.localLlmTimeoutSeconds, equals(900));
+      expect(config.localLlmMaxOutputTokens, equals(768));
+      expect(config.localLlmReasoningEffort, equals('none'));
       expect(config.translationContext, equals('Keep product names in English'));
       expect(config.translationContextFile, equals('docs/translation_context.md'));
     });

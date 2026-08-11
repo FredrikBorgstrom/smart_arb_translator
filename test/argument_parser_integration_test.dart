@@ -321,6 +321,8 @@ smart_arb_translator:
   local_llm_model: qwen2.5:32b
   local_llm_json_mode: false
   local_llm_timeout_seconds: 900
+  local_llm_max_output_tokens: 768
+  local_llm_reasoning_effort: none
 ''');
 
       final result = await ArbTranslatorArgumentParser.parseArguments([]);
@@ -335,6 +337,16 @@ smart_arb_translator:
           result[ArbTranslatorArgumentParser.localLlmTimeoutSeconds],
         ),
         equals(900),
+      );
+      expect(
+        ArbTranslatorArgumentParser.parseLocalLlmMaxOutputTokens(
+          result[ArbTranslatorArgumentParser.localLlmMaxOutputTokens],
+        ),
+        equals(768),
+      );
+      expect(
+        result[ArbTranslatorArgumentParser.localLlmReasoningEffort],
+        equals('none'),
       );
     });
   });

@@ -83,6 +83,13 @@ void main() {
     expect(maxActive, 1);
     expect(result['provenance'], containsPair('parallel_translations', 1));
     expect((result['provenance'] as Map)['fallback'], 'none');
+    expect(
+      result['provenance'],
+      containsPair(
+        'max_output_tokens',
+        LocalLlmOptions.defaultMaxOutputTokens,
+      ),
+    );
     final rows = result['results'] as List;
     expect(rows, hasLength(2));
     expect((rows.first as Map)['english'], 'Back');
@@ -98,8 +105,12 @@ void main() {
     var calls = 0;
     final client = MockClient((request) async {
       calls++;
-      final prompt =
-          ((jsonDecode(request.body) as Map<String, dynamic>)['messages'] as List).single['content'] as String;
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      expect(
+        body['max_tokens'],
+        LocalLlmOptions.defaultMaxOutputTokens,
+      );
+      final prompt = (body['messages'] as List).single['content'] as String;
       return http.Response(
         jsonEncode({
           'choices': [
@@ -137,6 +148,10 @@ void main() {
         'qwen2.5:32b',
         '--profile',
         'openai_chat_json',
+        '--max-output-tokens',
+        '768',
+        '--reasoning-effort',
+        'none',
         '--locale',
         'fr',
       ],
@@ -144,6 +159,8 @@ void main() {
       writeError: logs.add,
       benchmarkRunner: ({required corpus, required options, selectedLocales}) async {
         expect(options.model, 'qwen2.5:32b');
+        expect(options.maxOutputTokens, 768);
+        expect(options.reasoningEffort, 'none');
         expect(selectedLocales, ['fr']);
         return {
           'schema_version': 1,

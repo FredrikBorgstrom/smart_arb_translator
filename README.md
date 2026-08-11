@@ -264,6 +264,8 @@ smart_arb_translator:
   local_llm_model: qwen3.5:27b
   local_llm_json_mode: true
   local_llm_timeout_seconds: 600
+  local_llm_max_output_tokens: 2048
+  local_llm_reasoning_effort: none # optional; none, low, medium, or high
   local_llm_profile: openai_chat_json # or translategemma
   parallel_translations: 1
 ```
@@ -271,7 +273,10 @@ smart_arb_translator:
 `translategemma` uses its translation-only contract, sends one ARB resource per
 request, maps `fil` to `fil-PH`, and never falls back to a paid provider. It is
 intended for an explicitly configured local model; the package never downloads
-or starts one.
+or starts one. `local_llm_max_output_tokens` prevents local reasoning models
+from consuming the entire request timeout before returning a translation.
+`local_llm_reasoning_effort` is optional because some compatible runtimes do
+not implement it.
 
 An optional local smoke test is excluded by default: set
 `SMART_ARB_LOCAL_SMOKE_MODEL` (and optionally URL/profile) then run
@@ -601,6 +606,8 @@ All options can be configured in `pubspec.yaml` under the `smart_arb_translator`
 | `--local_llm_model` | Model identifier exposed by the local runtime; required for `local_llm` | - | `local_llm_model` |
 | `--[no-]local_llm_json_mode` | Request JSON mode through `response_format` | `true` | `local_llm_json_mode` |
 | `--local_llm_timeout_seconds` | Timeout for one local inference request | `600` | `local_llm_timeout_seconds` |
+| `--local_llm_max_output_tokens` | Maximum completion tokens returned by one local request | `2048` | `local_llm_max_output_tokens` |
+| `--local_llm_reasoning_effort` | Optional local reasoning control: `none`, `low`, `medium`, or `high` | - | `local_llm_reasoning_effort` |
 | `--local_llm_profile` | `openai_chat_json` (default) or translation-only `translategemma` | `openai_chat_json` | `local_llm_profile` |
 | `--translation_context` | Optional context text for LLM translation style/tone | - | `translation_context` |
 | `--translation_context_file` | Optional file with context text for LLM translations | - | `translation_context_file` |

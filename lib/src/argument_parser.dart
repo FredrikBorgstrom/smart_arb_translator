@@ -48,6 +48,8 @@ class ArbTranslatorArgumentParser {
   static const _localLlmModel = 'local_llm_model';
   static const _localLlmJsonMode = 'local_llm_json_mode';
   static const _localLlmTimeoutSeconds = 'local_llm_timeout_seconds';
+  static const _localLlmMaxOutputTokens = 'local_llm_max_output_tokens';
+  static const _localLlmReasoningEffort = 'local_llm_reasoning_effort';
   static const _localLlmProfile = 'local_llm_profile';
   static const _translationContext = 'translation_context';
   static const _translationContextFile = 'translation_context_file';
@@ -212,6 +214,16 @@ class ArbTranslatorArgumentParser {
         defaultsTo: LocalLlmOptions.defaultTimeoutSeconds.toString(),
       )
       ..addOption(
+        _localLlmMaxOutputTokens,
+        help: 'maximum completion tokens returned by one local LLM request',
+        defaultsTo: LocalLlmOptions.defaultMaxOutputTokens.toString(),
+      )
+      ..addOption(
+        _localLlmReasoningEffort,
+        help: 'optional local reasoning control: none, low, medium, or high',
+        allowed: ['none', 'low', 'medium', 'high'],
+      )
+      ..addOption(
         _localLlmProfile,
         help: 'local model protocol: openai_chat_json or translategemma',
         allowed: ['openai_chat_json', 'translategemma'],
@@ -277,6 +289,19 @@ class ArbTranslatorArgumentParser {
     final parsed = int.tryParse(raw.toString().trim());
     if (parsed == null || parsed < 1) {
       return LocalLlmOptions.defaultTimeoutSeconds;
+    }
+    return parsed;
+  }
+
+  /// Parses the local completion-token limit, applying validation and default.
+  static int parseLocalLlmMaxOutputTokens(dynamic raw) {
+    if (raw == null) return LocalLlmOptions.defaultMaxOutputTokens;
+    if (raw is int) {
+      return raw < 1 ? LocalLlmOptions.defaultMaxOutputTokens : raw;
+    }
+    final parsed = int.tryParse(raw.toString().trim());
+    if (parsed == null || parsed < 1) {
+      return LocalLlmOptions.defaultMaxOutputTokens;
     }
     return parsed;
   }
@@ -381,6 +406,10 @@ class ArbTranslatorArgumentParser {
     final localLlmTimeoutSeconds = parseLocalLlmTimeoutSeconds(
       mergedResult[_localLlmTimeoutSeconds],
     );
+    final localLlmMaxOutputTokens = parseLocalLlmMaxOutputTokens(
+      mergedResult[_localLlmMaxOutputTokens],
+    );
+    final localLlmReasoningEffort = (mergedResult[_localLlmReasoningEffort] as String?)?.trim();
     final localLlmProfile = mergedResult[_localLlmProfile] as String? ?? 'openai_chat_json';
     final translationContextFile = (mergedResult[_translationContextFile] as String?)?.trim();
 
@@ -451,6 +480,8 @@ class ArbTranslatorArgumentParser {
           model: localLlmModel,
           jsonMode: localLlmJsonMode,
           timeoutSeconds: localLlmTimeoutSeconds,
+          maxOutputTokens: localLlmMaxOutputTokens,
+          reasoningEffort: localLlmReasoningEffort,
           profile: localLlmProfile,
         );
       } on ArgumentError catch (error) {
@@ -529,6 +560,12 @@ class ArbTranslatorArgumentParser {
     if (pubspecConfig.localLlmTimeoutSeconds != null) {
       mergedOptions[_localLlmTimeoutSeconds] = pubspecConfig.localLlmTimeoutSeconds;
     }
+    if (pubspecConfig.localLlmMaxOutputTokens != null) {
+      mergedOptions[_localLlmMaxOutputTokens] = pubspecConfig.localLlmMaxOutputTokens;
+    }
+    if (pubspecConfig.localLlmReasoningEffort != null) {
+      mergedOptions[_localLlmReasoningEffort] = pubspecConfig.localLlmReasoningEffort;
+    }
     if (pubspecConfig.localLlmProfile != null) mergedOptions[_localLlmProfile] = pubspecConfig.localLlmProfile;
     if (pubspecConfig.translationContext != null) {
       mergedOptions[_translationContext] = pubspecConfig.translationContext;
@@ -565,6 +602,7 @@ class ArbTranslatorArgumentParser {
     mergedOptions[_localLlmUrl] ??= LocalLlmOptions.defaultEndpoint;
     mergedOptions[_localLlmJsonMode] ??= true;
     mergedOptions[_localLlmTimeoutSeconds] ??= LocalLlmOptions.defaultTimeoutSeconds.toString();
+    mergedOptions[_localLlmMaxOutputTokens] ??= LocalLlmOptions.defaultMaxOutputTokens.toString();
     mergedOptions[_localLlmProfile] ??= 'openai_chat_json';
     mergedOptions[_parallelTranslations] ??= defaultParallelTranslations.toString();
     mergedOptions[_manualOnly] ??= false;
@@ -736,6 +774,7 @@ class ArbTranslatorArgumentParser {
       config[_localLlmModel] = modelInput;
       config[_localLlmJsonMode] = true;
       config[_localLlmTimeoutSeconds] = LocalLlmOptions.defaultTimeoutSeconds;
+      config[_localLlmMaxOutputTokens] = LocalLlmOptions.defaultMaxOutputTokens;
     } else {
       // V2 services require API key authentication
       config[_authMode] = 'api_key';
@@ -954,6 +993,8 @@ class ArbTranslatorArgumentParser {
       'local_llm_model:',
       'local_llm_json_mode:',
       'local_llm_timeout_seconds:',
+      'local_llm_max_output_tokens:',
+      'local_llm_reasoning_effort:',
       'local_llm_profile:',
       'translation_context:',
       'translation_context_file:',
@@ -1059,6 +1100,8 @@ class ArbTranslatorArgumentParser {
   static String get localLlmModel => _localLlmModel;
   static String get localLlmJsonMode => _localLlmJsonMode;
   static String get localLlmTimeoutSeconds => _localLlmTimeoutSeconds;
+  static String get localLlmMaxOutputTokens => _localLlmMaxOutputTokens;
+  static String get localLlmReasoningEffort => _localLlmReasoningEffort;
   static String get localLlmProfile => _localLlmProfile;
   static String get translationContext => _translationContext;
   static String get translationContextFile => _translationContextFile;
