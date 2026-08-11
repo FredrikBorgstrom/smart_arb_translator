@@ -5,11 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.9.0] - 2026-08-11
 
 ### Added
 
-- Add structured reviewed-overlay validation, offline/manual coverage, provider-safe provenance fingerprints, deterministic ARB/ICU validators, Google LLM resource identity labels, and the `translategemma` local profile without changing the package version.
+- Add structured reviewed-overlay validation, offline/manual coverage, provider-safe provenance fingerprints, deterministic ARB/ICU validators, Google LLM resource identity labels, and the `translategemma` local profile.
 - Bound local-model completions with a configurable token ceiling and optional reasoning-effort control so reasoning models return deterministic translation payloads instead of running until timeout.
 - Add scoped/inspection controls: `--locale`, `--source_file`, `--key`, `--validate_only`, `--merge_reviewed_only`, `--offline`, `--list_stale_reviewed`, and `--dry_run_network_plan`.
 - Add the explicitly invoked `tool/local_model_benchmark.dart` runner for sequential, no-fallback local-model corpus evaluation.
@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Generalize the OpenAI chat-completions implementation so hosted OpenAI and local OpenAI-compatible providers share the same validation behavior.
+- Compact cache provenance metadata while retaining deterministic provider, model, source, and context identity.
+
+### Fixed
+
+- Preserve translations from every source ARB feature file during directory processing instead of allowing the final feature to overwrite earlier translated resources.
+- Validate TranslateGemma ICU output before accepting it and retry malformed model responses safely.
 
 ## [1.8.2] - 2026-06-25
 

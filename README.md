@@ -33,7 +33,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dev_dependencies:
-  smart_arb_translator: ^1.8.1
+  smart_arb_translator: ^1.9.0
 ```
 
 Then run:
@@ -99,8 +99,10 @@ Which translation service do you want to use?
    - Large Language Model translation (requires Project ID)
 4. OpenAI
    - OpenAI chat model translation with optional context
+5. Local LLM
+   - Local OpenAI-compatible model such as Ollama or LM Studio
 
-Enter your choice (1, 2, 3, or 4) [default: 1]: 1
+Enter your choice (1, 2, 3, 4, or 5) [default: 1]: 1
 
 Enter the path to your Google Translate API key file: secrets/api_key.txt
 
@@ -423,7 +425,7 @@ dependencies:
     sdk: flutter
 
 dev_dependencies:
-  smart_arb_translator: ^1.8.1
+  smart_arb_translator: ^1.9.0
 
 # Smart ARB Translator Configuration
 smart_arb_translator:
@@ -889,7 +891,7 @@ All files will be processed recursively and organized in the output structure.
 ```yaml
 # pubspec.yaml
 dev_dependencies:
-  smart_arb_translator: ^1.8.1
+  smart_arb_translator: ^1.9.0
 
 flutter:
   generate: true
