@@ -70,6 +70,52 @@ void main() {
     expect(results.map((result) => result.translation), everyElement('Kumusta {name}'));
   });
 
+  test('TranslateGemma rejects modified ICU structure after retry', () async {
+    var calls = 0;
+    final client = MockClient((request) async {
+      calls++;
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      final prompt = (body['messages'] as List).single['content'] as String;
+      expect(prompt, contains('Preserve every variable name'));
+      return http.Response(
+        jsonEncode({
+          'choices': [
+            {
+              'message': {
+                'content': '{count, select, one {Un élément} other {Plusieurs éléments}}',
+              },
+            },
+          ],
+        }),
+        200,
+      );
+    });
+
+    await expectLater(
+      TranslationService.translateResources(
+        resources: const [
+          TranslationResource(
+            id: 'items',
+            sourceText: '{count, plural, one {One item} other {Many items}}',
+            sourceTopic: 'ui.arb',
+            icuVariables: ['count'],
+            icuRoles: ['plural'],
+            icuBranches: ['one', 'other'],
+          ),
+        ],
+        parameters: {'target': 'fr'},
+        translationService: 'local_llm',
+        localLlmOptions: LocalLlmOptions.fromConfig(
+          model: 'translategemma:27b',
+          profile: 'translategemma',
+        ),
+        client: client,
+      ),
+      throwsFormatException,
+    );
+    expect(calls, 2);
+  });
+
   test('Google LLM resource adapter sends source-only content with a safe identity label', () async {
     final client = MockClient((request) async {
       final body = jsonDecode(request.body) as Map<String, dynamic>;

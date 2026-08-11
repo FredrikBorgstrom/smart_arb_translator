@@ -246,6 +246,13 @@ class TranslationService {
       ..writeln(
           'Return only the translated text. Preserve every token matching __SMART_ARB_PH_<number>__ exactly. Do not mention the context.')
       ..writeln('Text: $protectedText');
+    if (resource.icuRoles.isNotEmpty) {
+      prompt.writeln(
+        'This text uses ICU MessageFormat. Preserve every variable name, '
+        'plural/select role, branch label, and brace exactly; translate only '
+        'the human-readable text inside branches.',
+      );
+    }
     if (context.isNotEmpty) prompt.writeln(context);
     final apiKey = (parameters['key'] as String?)?.trim();
     FormatException? lastError;
@@ -269,6 +276,11 @@ class TranslationService {
         final raw = _extractChatContent(response.body).trim();
         final restored =
             _restoreOpenAiPlaceholders([raw], prepared.placeholderTokensByText, providerLabel: 'TranslateGemma').single;
+        _assertStructuredIcuIntegrity(
+          resources: [resource],
+          translations: [restored],
+          providerLabel: 'TranslateGemma',
+        );
         _assertTranslationsLikelyLocalized(
           translations: [restored],
           promptTexts: prepared.promptTexts,
