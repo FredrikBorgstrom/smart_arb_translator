@@ -26,7 +26,7 @@ int runReviewedOverlayQualityCli(
     ..addMultiOption('locale', help: 'Locale(s) to validate; defaults to every reviewed locale directory.')
     ..addOption(
       'allowlist-file',
-      help: 'JSON array, or object with entries/keys/literals arrays, approved to remain source-equal.',
+      help: 'JSON array, or object with source-equal arrays and optional scriptProfiles locale map.',
     )
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show this help.');
   late ArgResults result;
@@ -104,7 +104,7 @@ int runReviewedOverlayQualityCli(
           for (final issue in LocalizationValidator.validatePair(
             source: source,
             target: target,
-            targetLocale: locale,
+            targetLocale: allowlist.validationLocale(locale),
             passthroughAllowlist: localeAllowlist,
           )) {
             final targetValue = target.resources[issue.key]?.text;
@@ -140,13 +140,14 @@ int runReviewedOverlayQualityCli(
 
 _QualityAllowlist _readAllowlist(String? filePath) {
   if (filePath == null || filePath.trim().isEmpty) {
-    return const _QualityAllowlist(<String>{}, <String, Set<String>>{});
+    return const _QualityAllowlist(<String>{}, <String, Set<String>>{}, <String, String>{});
   }
   final file = File(filePath);
   if (!file.existsSync()) throw ArgumentError('Allowlist file does not exist: ${file.path}');
   final decoded = jsonDecode(file.readAsStringSync());
   final values = <Object?>[];
   final localeValues = <String, Set<String>>{};
+  final scriptProfiles = <String, String>{};
   if (decoded is List) {
     values.addAll(decoded);
   } else if (decoded is Map) {
@@ -166,10 +167,27 @@ _QualityAllowlist _readAllowlist(String? filePath) {
         localeValues[entry.key.toString().toLowerCase()] = _validatedStrings(entry.value as List);
       }
     }
+    final scripts = decoded['scriptProfiles'];
+    if (scripts != null && scripts is! Map) {
+      throw const FormatException('Allowlist scriptProfiles must be an object of locale-to-script strings.');
+    }
+    if (scripts is Map) {
+      for (final entry in scripts.entries) {
+        if (entry.key is! String || entry.value is! String) {
+          throw const FormatException('Allowlist scriptProfiles must be an object of locale-to-script strings.');
+        }
+        final locale = entry.key.toString().trim().toLowerCase();
+        final script = entry.value.toString().trim();
+        if (locale.isEmpty || !const <String>{'Latn', 'Cyrl'}.contains(script)) {
+          throw const FormatException('Allowlist scriptProfiles values must be Latn or Cyrl.');
+        }
+        scriptProfiles[locale] = script;
+      }
+    }
   } else {
     throw const FormatException('Allowlist must be a JSON array or object.');
   }
-  return _QualityAllowlist(_validatedStrings(values), localeValues);
+  return _QualityAllowlist(_validatedStrings(values), localeValues, scriptProfiles);
 }
 
 Set<String> _validatedStrings(List<Object?> values) {
@@ -180,14 +198,20 @@ Set<String> _validatedStrings(List<Object?> values) {
 }
 
 class _QualityAllowlist {
-  const _QualityAllowlist(this.global, this.locales);
+  const _QualityAllowlist(this.global, this.locales, this.scriptProfiles);
 
   final Set<String> global;
   final Map<String, Set<String>> locales;
+  final Map<String, String> scriptProfiles;
 
   int get length => global.length + locales.values.fold<int>(0, (sum, entries) => sum + entries.length);
 
   Set<String> forLocale(String locale) => <String>{...global, ...?locales[locale.toLowerCase()]};
+
+  String validationLocale(String locale) {
+    final script = scriptProfiles[locale.toLowerCase()];
+    return script == null ? locale : '$locale-$script';
+  }
 }
 
 bool _isAllowlistedQualityIssue(

@@ -231,7 +231,17 @@ class LocalizationValidator {
   }
 
   static RegExp? _scriptProfile(String locale) {
-    final language = locale.toLowerCase().split(RegExp('[-_]')).first;
+    final parts = locale.toLowerCase().split(RegExp('[-_]'));
+    final language = parts.first;
+    String? explicitScript;
+    for (final part in parts.skip(1)) {
+      if (part.length == 4) {
+        explicitScript = part;
+        break;
+      }
+    }
+    if (explicitScript == 'latn') return null;
+    if (explicitScript == 'cyrl') return RegExp(r'[\u0400-\u052F]');
     if (const {'ar', 'fa', 'ur', 'ps'}.contains(language)) return RegExp(r'[\u0600-\u06FF]');
     if (language == 'el') return RegExp(r'[\u0370-\u03FF]');
     if (language == 'hy') return RegExp(r'[\u0530-\u058F]');

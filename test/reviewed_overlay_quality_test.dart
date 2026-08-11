@@ -139,6 +139,52 @@ void main() {
       contains(predicate<Map>((issue) => issue['code'] == 'missing_reviewed_feature')),
     );
   });
+
+  test('quality CLI supports an explicit Latin script profile for Serbian', () {
+    _write(File('${source.path}/ui.arb'), <String, Object?>{
+      '@@locale': 'en',
+      'settings': 'Account Settings',
+    });
+    final sr = Directory('${reviewed.path}/sr')..createSync();
+    _write(File('${sr.path}/ui.arb'), <String, Object?>{
+      '@@locale': 'sr',
+      'settings': 'Podešavanja naloga',
+    });
+
+    final failed = <String>[];
+    expect(
+      runReviewedOverlayQualityCli(
+        <String>['--source-dir', source.path, '--reviewed-dir', reviewed.path],
+        write: failed.add,
+      ),
+      1,
+    );
+    expect(
+      (jsonDecode(failed.single) as Map<String, dynamic>)['issues'],
+      contains(predicate<Map>((issue) => issue['code'] == 'target_script_mismatch')),
+    );
+
+    final allowlist = File('${root.path}/allowlist.json');
+    _write(allowlist, <String, Object?>{
+      'scriptProfiles': <String, String>{'sr': 'Latn'},
+    });
+    final passed = <String>[];
+    expect(
+      runReviewedOverlayQualityCli(
+        <String>[
+          '--source-dir',
+          source.path,
+          '--reviewed-dir',
+          reviewed.path,
+          '--allowlist-file',
+          allowlist.path,
+        ],
+        write: passed.add,
+      ),
+      0,
+    );
+    expect(jsonDecode(passed.single), containsPair('valid', true));
+  });
 }
 
 void _write(File file, Object value) {
