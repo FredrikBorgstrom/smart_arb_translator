@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:args/args.dart';
 import 'package:console/console.dart';
+import 'package:smart_arb_translator/src/models/codex_options.dart';
 import 'package:smart_arb_translator/src/models/local_llm_options.dart';
 import 'pubspec_config.dart';
 
@@ -20,6 +21,14 @@ import 'pubspec_config.dart';
 /// Arguments can be provided via command line or configured in pubspec.yaml
 /// under the `smart_arb_translator` section, with CLI arguments taking precedence.
 class ArbTranslatorArgumentParser {
+  static const Set<String> _supportedTranslationServices = {
+    'google_basic',
+    'google_nmt',
+    'google_llm',
+    'openai',
+    'local_llm',
+    'codex',
+  };
   static const _sourceArb = 'source_arb';
   static const _sourceDir = 'source_dir';
   static const _apiKey = 'api_key';
@@ -44,6 +53,11 @@ class ArbTranslatorArgumentParser {
   static const _credentialsFile = 'credentials_file';
   static const _quotaProjectId = 'quota_project_id';
   static const _openaiModel = 'openai_model';
+  static const _codexExecutable = 'codex_executable';
+  static const _codexModel = 'codex_model';
+  static const _codexReasoningEffort = 'codex_reasoning_effort';
+  static const _codexTimeoutSeconds = 'codex_timeout_seconds';
+  static const _codexMaxAgents = 'codex_max_agents';
   static const _localLlmUrl = 'local_llm_url';
   static const _localLlmModel = 'local_llm_model';
   static const _localLlmJsonMode = 'local_llm_json_mode';
@@ -160,14 +174,8 @@ class ArbTranslatorArgumentParser {
       ..addOption(
         _translationService,
         help:
-            'translation service to use: "google_basic" (v2), "google_nmt" (v2 with model=nmt), "google_llm" (v3), "openai", or "local_llm"',
-        allowed: [
-          'google_basic',
-          'google_nmt',
-          'google_llm',
-          'openai',
-          'local_llm',
-        ],
+            'translation service to use: "google_basic" (v2), "google_nmt" (v2 with model=nmt), "google_llm" (v3), "openai", "local_llm", or "codex"',
+        allowed: _supportedTranslationServices,
         defaultsTo: 'google_basic',
       )
       ..addOption(
@@ -193,6 +201,30 @@ class ArbTranslatorArgumentParser {
         _openaiModel,
         help: 'OpenAI model to use when translation_service=openai',
         defaultsTo: 'gpt-4o-mini',
+      )
+      ..addOption(
+        _codexExecutable,
+        help: 'Codex CLI executable or absolute path used when translation_service=codex',
+        defaultsTo: CodexOptions.defaultExecutable,
+      )
+      ..addOption(
+        _codexModel,
+        help: 'optional Codex model; omitted to use the signed-in Codex default',
+      )
+      ..addOption(
+        _codexReasoningEffort,
+        help: 'optional Codex reasoning effort override',
+        allowed: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+      )
+      ..addOption(
+        _codexTimeoutSeconds,
+        help: 'maximum duration of one Codex orchestration run, in seconds',
+        defaultsTo: CodexOptions.defaultTimeoutSeconds.toString(),
+      )
+      ..addOption(
+        _codexMaxAgents,
+        help: 'maximum concurrently active Codex child agents; minimum 2 for independent verification',
+        defaultsTo: CodexOptions.defaultMaxAgents.toString(),
       )
       ..addOption(
         _localLlmUrl,
@@ -231,7 +263,7 @@ class ArbTranslatorArgumentParser {
       )
       ..addOption(
         _translationContext,
-        help: 'optional context/instructions for LLM translations (google_llm, openai, or local_llm)',
+        help: 'optional context/instructions for LLM translations (google_llm, openai, local_llm, or codex)',
       )
       ..addOption(
         _translationContextFile,
@@ -277,6 +309,22 @@ class ArbTranslatorArgumentParser {
     if (trimmed.isEmpty) return defaultParallelTranslations;
     final parsed = int.tryParse(trimmed);
     if (parsed == null || parsed < 1) return defaultParallelTranslations;
+    return parsed;
+  }
+
+  static int parseCodexTimeoutSeconds(dynamic raw) {
+    if (raw == null) return CodexOptions.defaultTimeoutSeconds;
+    final parsed = raw is int ? raw : int.tryParse(raw.toString().trim());
+    if (parsed == null || parsed < 1) return CodexOptions.defaultTimeoutSeconds;
+    return parsed;
+  }
+
+  static int parseCodexMaxAgents(dynamic raw) {
+    if (raw == null) return CodexOptions.defaultMaxAgents;
+    final parsed = raw is int ? raw : int.tryParse(raw.toString().trim());
+    if (parsed == null || parsed < 2 || parsed > 16) {
+      return CodexOptions.defaultMaxAgents;
+    }
     return parsed;
   }
 
@@ -396,10 +444,27 @@ class ArbTranslatorArgumentParser {
     }
 
     final translationService = mergedResult[_translationService] as String? ?? 'google_basic';
+    if (!_supportedTranslationServices.contains(translationService)) {
+      _setBrightRed();
+      stderr.write(
+        'Unsupported --translation_service "$translationService". '
+        'Choose one of ${_supportedTranslationServices.join(', ')}.',
+      );
+      exit(2);
+    }
     final projectId = (mergedResult[_projectId] as String?)?.trim();
     final authMode = mergedResult[_authMode] as String? ?? 'api_key';
     final apiKey = (mergedResult[_apiKey] as String?)?.trim();
     final credentialsFile = (mergedResult[_credentialsFile] as String?)?.trim();
+    final codexExecutable = (mergedResult[_codexExecutable] as String?)?.trim();
+    final codexModel = (mergedResult[_codexModel] as String?)?.trim();
+    final codexReasoningEffort = (mergedResult[_codexReasoningEffort] as String?)?.trim();
+    final codexTimeoutSeconds = parseCodexTimeoutSeconds(
+      mergedResult[_codexTimeoutSeconds],
+    );
+    final codexMaxAgents = parseCodexMaxAgents(
+      mergedResult[_codexMaxAgents],
+    );
     final localLlmUrl = (mergedResult[_localLlmUrl] as String?)?.trim() ?? LocalLlmOptions.defaultEndpoint;
     final localLlmModel = (mergedResult[_localLlmModel] as String?)?.trim();
     final localLlmJsonMode = mergedResult[_localLlmJsonMode] as bool? ?? true;
@@ -491,6 +556,22 @@ class ArbTranslatorArgumentParser {
       }
     }
 
+    if (translationService == 'codex' && !manualOnly) {
+      try {
+        CodexOptions.fromConfig(
+          executable: codexExecutable,
+          model: codexModel,
+          reasoningEffort: codexReasoningEffort,
+          timeoutSeconds: codexTimeoutSeconds,
+          maxAgents: codexMaxAgents,
+        );
+      } on ArgumentError catch (error) {
+        _setBrightRed();
+        stderr.write(error.message?.toString() ?? error.toString());
+        exit(2);
+      }
+    }
+
     if (translationContextFile != null && translationContextFile.isNotEmpty) {
       final contextFile = File(translationContextFile);
       if (!contextFile.existsSync()) {
@@ -548,6 +629,21 @@ class ArbTranslatorArgumentParser {
     if (pubspecConfig.credentialsFile != null) mergedOptions[_credentialsFile] = pubspecConfig.credentialsFile;
     if (pubspecConfig.quotaProjectId != null) mergedOptions[_quotaProjectId] = pubspecConfig.quotaProjectId;
     if (pubspecConfig.openaiModel != null) mergedOptions[_openaiModel] = pubspecConfig.openaiModel;
+    if (pubspecConfig.codexExecutable != null) {
+      mergedOptions[_codexExecutable] = pubspecConfig.codexExecutable;
+    }
+    if (pubspecConfig.codexModel != null) {
+      mergedOptions[_codexModel] = pubspecConfig.codexModel;
+    }
+    if (pubspecConfig.codexReasoningEffort != null) {
+      mergedOptions[_codexReasoningEffort] = pubspecConfig.codexReasoningEffort;
+    }
+    if (pubspecConfig.codexTimeoutSeconds != null) {
+      mergedOptions[_codexTimeoutSeconds] = pubspecConfig.codexTimeoutSeconds;
+    }
+    if (pubspecConfig.codexMaxAgents != null) {
+      mergedOptions[_codexMaxAgents] = pubspecConfig.codexMaxAgents;
+    }
     if (pubspecConfig.localLlmUrl != null) {
       mergedOptions[_localLlmUrl] = pubspecConfig.localLlmUrl;
     }
@@ -599,6 +695,9 @@ class ArbTranslatorArgumentParser {
     mergedOptions[_translationService] ??= 'google_basic';
     mergedOptions[_authMode] ??= 'api_key';
     mergedOptions[_openaiModel] ??= 'gpt-4o-mini';
+    mergedOptions[_codexExecutable] ??= CodexOptions.defaultExecutable;
+    mergedOptions[_codexTimeoutSeconds] ??= CodexOptions.defaultTimeoutSeconds.toString();
+    mergedOptions[_codexMaxAgents] ??= CodexOptions.defaultMaxAgents.toString();
     mergedOptions[_localLlmUrl] ??= LocalLlmOptions.defaultEndpoint;
     mergedOptions[_localLlmJsonMode] ??= true;
     mergedOptions[_localLlmTimeoutSeconds] ??= LocalLlmOptions.defaultTimeoutSeconds.toString();
@@ -673,8 +772,10 @@ class ArbTranslatorArgumentParser {
     print(
       '   - Uses a local OpenAI-compatible server such as Ollama or LM Studio',
     );
+    print('6. Codex');
+    print('   - Uses the signed-in Codex CLI with independent parallel agent review');
     print('');
-    print('Enter your choice (1, 2, 3, 4, or 5) [default: 1]: ');
+    print('Enter your choice (1, 2, 3, 4, 5, or 6) [default: 1]: ');
 
     final serviceInput = stdin.readLineSync()?.trim() ?? '';
     String service = 'google_basic';
@@ -687,6 +788,8 @@ class ArbTranslatorArgumentParser {
       service = 'openai';
     } else if (serviceInput == '5') {
       service = 'local_llm';
+    } else if (serviceInput == '6') {
+      service = 'codex';
     }
 
     config[_translationService] = service;
@@ -775,6 +878,11 @@ class ArbTranslatorArgumentParser {
       config[_localLlmJsonMode] = true;
       config[_localLlmTimeoutSeconds] = LocalLlmOptions.defaultTimeoutSeconds;
       config[_localLlmMaxOutputTokens] = LocalLlmOptions.defaultMaxOutputTokens;
+    } else if (service == 'codex') {
+      // Authentication is owned by the signed-in Codex CLI.
+      config[_codexExecutable] = CodexOptions.defaultExecutable;
+      config[_codexTimeoutSeconds] = CodexOptions.defaultTimeoutSeconds;
+      config[_codexMaxAgents] = CodexOptions.defaultMaxAgents;
     } else {
       // V2 services require API key authentication
       config[_authMode] = 'api_key';
@@ -828,7 +936,7 @@ class ArbTranslatorArgumentParser {
 
     config[_languageCodes] = languageCodes;
 
-    if (service == 'google_llm' || service == 'openai' || service == 'local_llm') {
+    if (service == 'google_llm' || service == 'openai' || service == 'local_llm' || service == 'codex') {
       print(
         '\nOptional: add translation context/style guide (leave blank to skip): ',
       );
@@ -989,6 +1097,11 @@ class ArbTranslatorArgumentParser {
       'credentials_file:',
       'quota_project_id:',
       'openai_model:',
+      'codex_executable:',
+      'codex_model:',
+      'codex_reasoning_effort:',
+      'codex_timeout_seconds:',
+      'codex_max_agents:',
       'local_llm_url:',
       'local_llm_model:',
       'local_llm_json_mode:',
@@ -1096,6 +1209,11 @@ class ArbTranslatorArgumentParser {
   static String get credentialsFile => _credentialsFile;
   static String get quotaProjectId => _quotaProjectId;
   static String get openaiModel => _openaiModel;
+  static String get codexExecutable => _codexExecutable;
+  static String get codexModel => _codexModel;
+  static String get codexReasoningEffort => _codexReasoningEffort;
+  static String get codexTimeoutSeconds => _codexTimeoutSeconds;
+  static String get codexMaxAgents => _codexMaxAgents;
   static String get localLlmUrl => _localLlmUrl;
   static String get localLlmModel => _localLlmModel;
   static String get localLlmJsonMode => _localLlmJsonMode;

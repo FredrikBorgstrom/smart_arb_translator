@@ -158,6 +158,20 @@ smart_arb_translator \
   --generate_dart
 ```
 
+### **Codex with Independent Verification**
+```bash
+# Uses the signed-in Codex CLI; no translation API key is required.
+smart_arb_translator \
+  --source_dir lib/l10n \
+  --translation_service codex \
+  --codex_max_agents 3 \
+  --language_codes es,fr,de \
+  --generate_dart
+```
+
+Codex launches independent translation and verification agents for each locale
+job and does not fall back to another provider if the job fails.
+
 ### **Custom Configuration**
 ```bash
 smart_arb_translator \

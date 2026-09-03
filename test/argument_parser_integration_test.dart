@@ -349,5 +349,44 @@ smart_arb_translator:
         equals('none'),
       );
     });
+
+    test('should support Codex from pubspec without an API key', () async {
+      tempPubspec.writeAsStringSync('''
+name: test_app
+version: 1.0.0
+
+smart_arb_translator:
+  source_dir: lib/l10n
+  translation_service: codex
+  codex_executable: /opt/tools/codex
+  codex_model: gpt-5.6-sol
+  codex_reasoning_effort: high
+  codex_timeout_seconds: 1200
+  codex_max_agents: 4
+''');
+
+      final result = await ArbTranslatorArgumentParser.parseArguments([]);
+
+      expect(result[ArbTranslatorArgumentParser.translationService], equals('codex'));
+      expect(result[ArbTranslatorArgumentParser.apiKey], isNull);
+      expect(
+        result[ArbTranslatorArgumentParser.codexExecutable],
+        equals('/opt/tools/codex'),
+      );
+      expect(result[ArbTranslatorArgumentParser.codexModel], equals('gpt-5.6-sol'));
+      expect(result[ArbTranslatorArgumentParser.codexReasoningEffort], equals('high'));
+      expect(
+        ArbTranslatorArgumentParser.parseCodexTimeoutSeconds(
+          result[ArbTranslatorArgumentParser.codexTimeoutSeconds],
+        ),
+        equals(1200),
+      );
+      expect(
+        ArbTranslatorArgumentParser.parseCodexMaxAgents(
+          result[ArbTranslatorArgumentParser.codexMaxAgents],
+        ),
+        equals(4),
+      );
+    });
   });
 }

@@ -8,6 +8,7 @@ import 'package:smart_arb_translator/src/dart_code_generator.dart';
 import 'package:smart_arb_translator/src/file_operations.dart' as translator_file_ops;
 import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/models/arb_resource.dart';
+import 'package:smart_arb_translator/src/models/codex_options.dart';
 import 'package:smart_arb_translator/src/models/local_llm_options.dart';
 import 'package:smart_arb_translator/src/single_file_processor.dart';
 import 'package:smart_arb_translator/src/translation_statistics.dart';
@@ -113,6 +114,7 @@ class DirectoryProcessor {
     String? quotaProjectId,
     String openaiModel = 'gpt-4o-mini',
     String? translationContext,
+    CodexOptions? codexOptions,
     LocalLlmOptions? localLlmOptions,
     int parallelTranslations = 1,
     String? reviewedTranslationsDir,
@@ -219,6 +221,7 @@ class DirectoryProcessor {
         quotaProjectId: quotaProjectId,
         openaiModel: openaiModel,
         translationContext: translationContext,
+        codexOptions: codexOptions,
         localLlmOptions: localLlmOptions,
         parallelTranslations: effectiveParallelism,
         reviewedTranslationsDir: reviewedTranslationsDir,
@@ -447,6 +450,7 @@ class DirectoryProcessor {
     required String? quotaProjectId,
     required String openaiModel,
     required String? translationContext,
+    required CodexOptions? codexOptions,
     required LocalLlmOptions? localLlmOptions,
     required int parallelTranslations,
     required String? reviewedTranslationsDir,
@@ -480,6 +484,7 @@ class DirectoryProcessor {
         quotaProjectId: quotaProjectId,
         openaiModel: openaiModel,
         translationContext: translationContext,
+        codexOptions: codexOptions,
         localLlmOptions: localLlmOptions,
         reviewedTranslationsDir: reviewedTranslationsDir,
         manualOnly: manualOnly,

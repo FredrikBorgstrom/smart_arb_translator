@@ -13,7 +13,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  smart_arb_translator: ^1.1.0
+  smart_arb_translator: ^1.10.0
   flutter_lints: ^2.0.0
 
 # Smart ARB Translator Configuration
@@ -48,11 +48,17 @@ smart_arb_translator:
   use_deferred_loading: false              # Enable deferred loading for locales (Flutter Web optimization)
 
   # Translation service and auth
-  translation_service: google_basic         # "google_basic", "google_nmt", "google_llm", "openai", or "local_llm"
+  translation_service: google_basic         # "google_basic", "google_nmt", "google_llm", "openai", "local_llm", or "codex"
   project_id: my-gcp-project-id             # Required for "google_llm"
   auth_mode: api_key                        # "api_key", "adc", or "service_account"
   # credentials_file: secrets/service-account.json  # Required when auth_mode=service_account
   # quota_project_id: my-billing-project-id         # Optional for OAuth requests
+  # Codex example (uses the installed, signed-in Codex CLI; no api_key required):
+  # codex_executable: codex
+  # codex_model: gpt-5.6-sol
+  # codex_reasoning_effort: high
+  # codex_timeout_seconds: 900
+  # codex_max_agents: 3
   # Local LLM example (OpenAI-compatible server; no api_key required):
   # local_llm_url: http://127.0.0.1:11434/v1/chat/completions
   # local_llm_model: qwen3.5:27b

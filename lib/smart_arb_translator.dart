@@ -18,6 +18,7 @@ library;
 export 'src/arb_processor.dart';
 export 'src/argument_parser.dart';
 export 'src/cache_cleanup.dart';
+export 'src/codex_translation_service.dart';
 export 'src/console_utils.dart';
 export 'src/dart_code_generator.dart';
 export 'src/directory_processor.dart';
@@ -29,6 +30,7 @@ export 'src/models/arb_attributes.dart';
 // Model exports
 export 'src/models/arb_document.dart';
 export 'src/models/arb_resource.dart';
+export 'src/models/codex_options.dart';
 export 'src/models/local_llm_options.dart';
 export 'src/models/translation_resource.dart';
 export 'src/models/google_resource_adapter.dart';

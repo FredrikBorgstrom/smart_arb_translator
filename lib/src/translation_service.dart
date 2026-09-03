@@ -4,14 +4,16 @@ import 'dart:io';
 import 'package:googleapis_auth/auth_io.dart' as auth;
 import 'package:html_unescape/html_unescape.dart';
 import 'package:http/http.dart' as http;
+import 'package:smart_arb_translator/src/codex_translation_service.dart';
 import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/models/arb_resource.dart';
+import 'package:smart_arb_translator/src/models/codex_options.dart';
 import 'package:smart_arb_translator/src/models/google_resource_adapter.dart';
 import 'package:smart_arb_translator/src/models/local_llm_options.dart';
 import 'package:smart_arb_translator/src/models/translation_resource.dart';
 import 'package:smart_arb_translator/src/utils.dart';
 
-/// Service class for translation through Google, OpenAI, or local LLMs.
+/// Service class for translation through Google, OpenAI, local LLMs, or Codex.
 ///
 /// This class provides static methods for translating text content and managing
 /// translation workflows for ARB (Application Resource Bundle) files.
@@ -71,10 +73,34 @@ class TranslationService {
     String? credentialsFile,
     String? quotaProjectId,
     String? accessToken,
+    CodexOptions? codexOptions,
+    CodexRunner? codexRunner,
     LocalLlmOptions? localLlmOptions,
     http.Client? client,
   }) async {
     switch (translationService) {
+      case 'codex':
+        if (codexOptions == null) {
+          throw ArgumentError(
+            'CodexOptions are required when translation_service is "codex"',
+          );
+        }
+        final resources = List<TranslationResource>.generate(
+          translateList.length,
+          (index) => TranslationResource(
+            id: 'item_$index',
+            sourceText: translateList[index],
+            sourceTopic: 'legacy_text_batch',
+          ),
+        );
+        final results = await translateResources(
+          resources: resources,
+          parameters: parameters,
+          translationService: translationService,
+          codexOptions: codexOptions,
+          codexRunner: codexRunner,
+        );
+        return results.map((result) => result.translation).toList();
       case 'google_nmt':
         return _translateWithNMT(translateList, parameters, client: client);
       case 'google_llm':
@@ -108,8 +134,13 @@ class TranslationService {
           client: client,
         );
       case 'google_basic':
-      default:
         return _translateWithBasic(translateList, parameters, client: client);
+      default:
+        throw ArgumentError.value(
+          translationService,
+          'translationService',
+          'is not supported',
+        );
     }
   }
 
@@ -125,10 +156,70 @@ class TranslationService {
     String? quotaProjectId,
     String? accessToken,
     bool allowPerItemFallback = true,
+    CodexOptions? codexOptions,
+    CodexRunner? codexRunner,
     LocalLlmOptions? localLlmOptions,
     http.Client? client,
   }) async {
     if (resources.isEmpty) return const [];
+    if (translationService == 'codex') {
+      if (codexOptions == null) {
+        throw ArgumentError(
+          'CodexOptions are required when translation_service is "codex"',
+        );
+      }
+      final targetLanguage = (parameters['target'] as String?)?.trim();
+      if (targetLanguage == null || targetLanguage.isEmpty) {
+        throw ArgumentError('Target language is required for Codex translation.');
+      }
+      final sourceLanguage = (parameters['source'] as String?)?.trim();
+      final translationContext = (parameters['translation_context'] as String?)?.trim();
+      final protectedTexts = resources.map(_protectStructuredResourcePlaceholders).toList(growable: false);
+      final preparedTexts = _prepareOpenAiTexts(protectedTexts);
+      FormatException? lastFormatError;
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try {
+          final rawResults = await CodexTranslationService.translate(
+            resources: resources,
+            protectedSourceTexts: preparedTexts.promptTexts,
+            targetLocale: targetLanguage,
+            sourceLocale: sourceLanguage,
+            translationContext: translationContext,
+            options: codexOptions,
+            retryFeedback: lastFormatError?.message,
+            runner: codexRunner ?? const CodexCliRunner(),
+          );
+          final restoredTranslations = _restoreOpenAiPlaceholders(
+            rawResults.map((result) => result.translation).toList(growable: false),
+            preparedTexts.placeholderTokensByText,
+            providerLabel: 'Codex',
+          );
+          _assertStructuredIcuIntegrity(
+            resources: resources,
+            translations: restoredTranslations,
+            providerLabel: 'Codex',
+          );
+          _assertTranslationsLikelyLocalized(
+            translations: restoredTranslations,
+            promptTexts: preparedTexts.promptTexts,
+            placeholderTokensByText: preparedTexts.placeholderTokensByText,
+            targetLanguage: targetLanguage,
+            providerLabel: 'Codex',
+          );
+          return List<TranslationResult>.generate(
+            resources.length,
+            (index) => TranslationResult(
+              id: resources[index].id,
+              translation: restoredTranslations[index],
+            ),
+          );
+        } on FormatException catch (error) {
+          lastFormatError = error;
+          if (attempt == 1) rethrow;
+        }
+      }
+      throw lastFormatError ?? const FormatException('Codex returned invalid translations.');
+    }
     if (translationService == 'google_llm') {
       if (projectId == null || projectId.trim().isEmpty) {
         throw ArgumentError('Project ID is required for google_llm resource translation.');
@@ -150,6 +241,16 @@ class TranslationService {
         results.add(TranslationResult(id: resource.id, translation: values.single));
       }
       return results;
+    }
+    if (translationService != 'openai' &&
+        translationService != 'local_llm' &&
+        translationService != 'google_basic' &&
+        translationService != 'google_nmt') {
+      throw ArgumentError.value(
+        translationService,
+        'translationService',
+        'is not supported',
+      );
     }
     if (translationService != 'openai' && translationService != 'local_llm') {
       final adapters = resources.map(GoogleResourceAdapter.new).toList(growable: false);

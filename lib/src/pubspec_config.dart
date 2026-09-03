@@ -87,6 +87,21 @@ class PubspecConfig {
   /// OpenAI model to use when `translation_service` is `openai`.
   final String? openaiModel;
 
+  /// Codex CLI executable or absolute path.
+  final String? codexExecutable;
+
+  /// Optional Codex model override.
+  final String? codexModel;
+
+  /// Optional Codex reasoning effort override.
+  final String? codexReasoningEffort;
+
+  /// Maximum duration of one Codex orchestration run.
+  final int? codexTimeoutSeconds;
+
+  /// Maximum concurrently active Codex child agents.
+  final int? codexMaxAgents;
+
   /// OpenAI-compatible chat-completions URL for `local_llm`.
   final String? localLlmUrl;
 
@@ -152,6 +167,11 @@ class PubspecConfig {
     this.credentialsFile,
     this.quotaProjectId,
     this.openaiModel,
+    this.codexExecutable,
+    this.codexModel,
+    this.codexReasoningEffort,
+    this.codexTimeoutSeconds,
+    this.codexMaxAgents,
     this.localLlmUrl,
     this.localLlmModel,
     this.localLlmJsonMode,
@@ -225,6 +245,13 @@ class PubspecConfig {
         credentialsFile: config['credentials_file'] as String?,
         quotaProjectId: config['quota_project_id'] as String?,
         openaiModel: config['openai_model'] as String?,
+        codexExecutable: config['codex_executable'] as String?,
+        codexModel: config['codex_model'] as String?,
+        codexReasoningEffort: config['codex_reasoning_effort'] as String?,
+        codexTimeoutSeconds: _parsePositiveInt(
+          config['codex_timeout_seconds'],
+        ),
+        codexMaxAgents: _parsePositiveInt(config['codex_max_agents']),
         localLlmUrl: config['local_llm_url'] as String?,
         localLlmModel: config['local_llm_model'] as String?,
         localLlmJsonMode: config['local_llm_json_mode'] as bool?,
@@ -320,6 +347,11 @@ class PubspecConfig {
         credentialsFile != null ||
         quotaProjectId != null ||
         openaiModel != null ||
+        codexExecutable != null ||
+        codexModel != null ||
+        codexReasoningEffort != null ||
+        codexTimeoutSeconds != null ||
+        codexMaxAgents != null ||
         localLlmUrl != null ||
         localLlmModel != null ||
         localLlmJsonMode != null ||
@@ -361,6 +393,11 @@ class PubspecConfig {
         'credentialsFile: $credentialsFile, '
         'quotaProjectId: $quotaProjectId, '
         'openaiModel: $openaiModel, '
+        'codexExecutable: $codexExecutable, '
+        'codexModel: $codexModel, '
+        'codexReasoningEffort: $codexReasoningEffort, '
+        'codexTimeoutSeconds: $codexTimeoutSeconds, '
+        'codexMaxAgents: $codexMaxAgents, '
         'localLlmUrl: $localLlmUrl, '
         'localLlmModel: $localLlmModel, '
         'localLlmJsonMode: $localLlmJsonMode, '

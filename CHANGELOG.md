@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-09-03
+
+### Added
+
+- Add `translation_service: codex`, which invokes the signed-in Codex CLI in an ephemeral read-only workspace and requires parallel primary translation plus independent verification, with adjudication for disagreements.
+- Add configurable Codex executable, model, reasoning effort, timeout, and child-agent concurrency through both CLI arguments and `pubspec.yaml`.
+- Enforce the configured child-agent limit through Codex's per-session concurrency setting as well as the orchestration prompt.
+- Validate schema-constrained Codex output for exact resource identity, ordering, count, non-empty translations, placeholder preservation, and ICU integrity, with no fallback to another provider.
+- Retry one rejected Codex response with the deterministic validation failure as correction feedback, while continuing to fail closed after a second invalid response.
+
+### Fixed
+
+- Forward `parallel_translations` through the public `translate.dart` executable so configured per-locale concurrency is honored.
+- Reject unknown provider names instead of silently falling through to Google Basic translation.
+
 ## [1.9.0] - 2026-08-11
 
 ### Added

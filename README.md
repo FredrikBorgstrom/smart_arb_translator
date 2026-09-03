@@ -1,6 +1,6 @@
 # Smart ARB Translator
 
-A command-line utility for translating ARB (Application Resource Bundle) files using Google Translate, OpenAI, or a local LLM. This package features smart change detection that only translates messages that have been added or changed. This will keep your translation costs to a minimum. A cost-saving end-to-end solution that translates your messages to Dart classes in the languages of your choice.
+A command-line utility for translating ARB (Application Resource Bundle) files using Google Translate, OpenAI, a local LLM, or multi-agent Codex. This package features smart change detection that only translates messages that have been added or changed. This will keep your translation costs to a minimum. A cost-saving end-to-end solution that translates your messages to Dart classes in the languages of your choice.
 
 ## 🚀 Features
 
@@ -12,7 +12,7 @@ A command-line utility for translating ARB (Application Resource Bundle) files u
 - **📝 Intelligent Setup**: Creates `l10n.yaml` or configures `pubspec.yaml` automatically
 - **🔧 Dart Code Generation**: Generate ready-to-use Dart localization code with either method or simply translate and use your own dart generator
 - **⚙️ Pubspec.yaml Configuration**: Configure all parameters directly in your `pubspec.yaml` file
-- **🆕 Translation Services**: Support for Google Translate v2 (Basic & NMT), Google v3 (LLM), OpenAI, and local OpenAI-compatible models
+- **🆕 Translation Services**: Support for Google Translate v2 (Basic & NMT), Google v3 (LLM), OpenAI, local OpenAI-compatible models, and independently verified multi-agent Codex translations
 - **🆕 Translation Context**: Optional LLM context prompt (inline or file-based) for domain-specific tone/terminology
 - **🧹 Corrupted Cache Recovery**: Remove only known-bad cached translations from buggy package versions without deleting the whole cache
 - **⚡ Parallel Translation Requests (1.8.0)**: Optionally issue multiple per-language translation calls in parallel to dramatically reduce wall-clock time for projects targeting many locales. Defaults to `1` to preserve the original strictly-sequential behavior.
@@ -33,7 +33,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dev_dependencies:
-  smart_arb_translator: ^1.9.0
+  smart_arb_translator: ^1.10.0
 ```
 
 Then run:
@@ -64,7 +64,7 @@ The tool will automatically prompt you to configure (hit `ENTER` key for default
 - **Source type**: Directory or single file
 - **Source path**: With smart defaults (lib/l10n_source for directories)
 - **Source locale**: With 'en' as default
-- **Translation service**: Google Basic/NMT (v2), Google LLM (v3), OpenAI, or a local LLM
+- **Translation service**: Google Basic/NMT (v2), Google LLM (v3), OpenAI, a local LLM, or Codex
 - **Authentication mode**:
   - `api_key` for v2 (and legacy v3 mode)
   - `adc` for Google LLM with Application Default Credentials
@@ -101,8 +101,10 @@ Which translation service do you want to use?
    - OpenAI chat model translation with optional context
 5. Local LLM
    - Local OpenAI-compatible model such as Ollama or LM Studio
+6. Codex
+   - Signed-in Codex CLI with parallel translation and independent verification
 
-Enter your choice (1, 2, 3, 4, or 5) [default: 1]: 1
+Enter your choice (1, 2, 3, 4, 5, or 6) [default: 1]: 1
 
 Enter the path to your Google Translate API key file: secrets/api_key.txt
 
@@ -284,6 +286,39 @@ An optional local smoke test is excluded by default: set
 `SMART_ARB_LOCAL_SMOKE_MODEL` (and optionally URL/profile) then run
 `dart test -t local-smoke --run-skipped`.
 
+### 5. Codex
+
+Use `translation_service: codex` to run translations through the locally
+installed and signed-in Codex CLI. No translation API key is required. Each
+request runs in an ephemeral read-only workspace with a schema-constrained
+response. The root agent must launch independent primary and verification
+agents in parallel and adjudicate disagreements; failures never fall back to a
+different provider.
+
+See the official Codex documentation for
+[non-interactive execution](https://learn.chatgpt.com/docs/non-interactive-mode),
+[subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents), and
+the [agent concurrency setting](https://learn.chatgpt.com/docs/config-file/config-reference).
+
+```yaml
+smart_arb_translator:
+  translation_service: codex
+  codex_executable: codex       # Or an absolute executable path
+  codex_model: gpt-5.6-sol      # Optional; omit to use the Codex default
+  codex_reasoning_effort: high  # Optional
+  codex_timeout_seconds: 900
+  codex_max_agents: 3           # Minimum 2 for independent verification
+  parallel_translations: 2      # Concurrent locale-level Codex runs
+  translation_context_file: docs/translation_context.md
+```
+
+`codex_max_agents` is passed to Codex's
+`agents.max_concurrent_threads_per_session` setting and controls child-agent
+concurrency within one locale job;
+`parallel_translations` controls how many locale jobs the translator launches
+at once. Keep the product of those settings within the capacity of the signed-in
+Codex environment.
+
 For Codex-reviewed projects, configure `reviewed_translations_dir` and run with
 `manual_only: true` (or `--offline`). Reviewed ledgers must minimally pair each
 ARB value with `source`, `translation`, `sourceFingerprint`, and
@@ -455,12 +490,17 @@ smart_arb_translator:
   l10n_method: gen-l10n                    # Options: "gen-l10n", "intl_utils", or "none"
   
   # Translation Service Configuration
-  translation_service: openai                # Options: "google_basic", "google_nmt", "google_llm", "openai", "local_llm"
+  translation_service: openai                # Options: "google_basic", "google_nmt", "google_llm", "openai", "local_llm", "codex"
   project_id: my-gcp-project-id              # Required for "google_llm"
   auth_mode: api_key                         # Options: "api_key", "adc", "service_account" (openai requires "api_key")
   credentials_file: secrets/service-account.json   # Required when auth_mode=service_account
   quota_project_id: my-billing-project-id    # Optional for OAuth requests (x-goog-user-project)
   openai_model: gpt-4o-mini                  # Optional, used when translation_service=openai
+  # codex_executable: codex                   # Used when translation_service=codex
+  # codex_model: gpt-5.6-sol                  # Optional; defaults to the Codex configuration
+  # codex_reasoning_effort: high              # Optional model reasoning override
+  # codex_timeout_seconds: 900
+  # codex_max_agents: 3                       # Minimum 2 for independent verification
   # local_llm_url: http://127.0.0.1:11434/v1/chat/completions
   # local_llm_model: qwen3.5:27b              # Required when translation_service=local_llm
   # local_llm_json_mode: true                 # Disable for endpoints that reject response_format
@@ -578,6 +618,20 @@ OpenAI-style `/v1` base URL; Smart ARB Translator normalizes either form to
 `/v1/chat/completions`. Use `--no-local_llm_json_mode` only when a compatible
 server rejects the `response_format` request field.
 
+#### Codex with Independent Agent Verification
+
+```bash
+smart_arb_translator \
+  --source_dir lib/l10n \
+  --translation_service codex \
+  --codex_model gpt-5.6-sol \
+  --codex_reasoning_effort high \
+  --codex_max_agents 3 \
+  --translation_context_file docs/translation_context.md \
+  --parallel_translations 2 \
+  --language_codes es,fr,de
+```
+
 ### Command Line Options
 
 All options can be configured in `pubspec.yaml` under the `smart_arb_translator` section. CLI arguments take precedence over pubspec.yaml settings.
@@ -598,12 +652,17 @@ All options can be configured in `pubspec.yaml` under the `smart_arb_translator`
 | `--dart_main_locale` | Main locale for Dart code generation | `en` | `dart_main_locale` |
 | `--auto_approve` | Auto-approve configuration changes | `false` | `auto_approve` |
 | `--use_deferred_loading` | Enable deferred loading for locales (Flutter Web optimization) | `false` | `use_deferred_loading` |
-| `--translation_service` | Translation service: `google_basic`, `google_nmt`, `google_llm`, `openai`, or `local_llm` | `google_basic` | `translation_service` |
+| `--translation_service` | Translation service: `google_basic`, `google_nmt`, `google_llm`, `openai`, `local_llm`, or `codex` | `google_basic` | `translation_service` |
 | `--project_id` | Google Cloud Project ID (required for `google_llm`) | - | `project_id` |
 | `--auth_mode` | Auth mode: `api_key`, `adc`, or `service_account` | `api_key` | `auth_mode` |
 | `--credentials_file` | Path to service account JSON key file (required for `service_account`) | - | `credentials_file` |
 | `--quota_project_id` | Optional quota/billing project id for OAuth requests | - | `quota_project_id` |
 | `--openai_model` | OpenAI model to use when `translation_service=openai` | `gpt-4o-mini` | `openai_model` |
+| `--codex_executable` | Codex CLI executable name or absolute path | `codex` | `codex_executable` |
+| `--codex_model` | Optional Codex model override | Signed-in Codex default | `codex_model` |
+| `--codex_reasoning_effort` | Optional Codex reasoning effort override | Signed-in Codex default | `codex_reasoning_effort` |
+| `--codex_timeout_seconds` | Timeout for one Codex orchestration run | `900` | `codex_timeout_seconds` |
+| `--codex_max_agents` | Maximum active child agents in a Codex job; minimum 2 | `3` | `codex_max_agents` |
 | `--local_llm_url` | OpenAI-compatible local chat-completions endpoint or base URL | `http://127.0.0.1:11434/v1/chat/completions` | `local_llm_url` |
 | `--local_llm_model` | Model identifier exposed by the local runtime; required for `local_llm` | - | `local_llm_model` |
 | `--[no-]local_llm_json_mode` | Request JSON mode through `response_format` | `true` | `local_llm_json_mode` |

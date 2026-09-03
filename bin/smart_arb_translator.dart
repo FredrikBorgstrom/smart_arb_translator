@@ -10,6 +10,7 @@ import 'package:smart_arb_translator/src/cache_cleanup.dart';
 import 'package:smart_arb_translator/src/console_utils.dart';
 import 'package:smart_arb_translator/src/directory_processor.dart';
 import 'package:smart_arb_translator/src/models/local_llm_options.dart';
+import 'package:smart_arb_translator/src/models/codex_options.dart';
 import 'package:smart_arb_translator/src/localization_validator.dart';
 import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/models/translation_resource.dart';
@@ -139,6 +140,19 @@ void main(List<String> args) async {
           profile: result[ArbTranslatorArgumentParser.localLlmProfile] as String? ?? 'openai_chat_json',
         )
       : null;
+  final codexOptions = translationService == 'codex' && !manualOnly
+      ? CodexOptions.fromConfig(
+          executable: result[ArbTranslatorArgumentParser.codexExecutable] as String?,
+          model: result[ArbTranslatorArgumentParser.codexModel] as String?,
+          reasoningEffort: result[ArbTranslatorArgumentParser.codexReasoningEffort] as String?,
+          timeoutSeconds: ArbTranslatorArgumentParser.parseCodexTimeoutSeconds(
+            result[ArbTranslatorArgumentParser.codexTimeoutSeconds],
+          ),
+          maxAgents: ArbTranslatorArgumentParser.parseCodexMaxAgents(
+            result[ArbTranslatorArgumentParser.codexMaxAgents],
+          ),
+        )
+      : null;
   final translationContext = _readTranslationContext(
     result[ArbTranslatorArgumentParser.translationContext] as String?,
     result[ArbTranslatorArgumentParser.translationContextFile] as String?,
@@ -218,6 +232,7 @@ void main(List<String> args) async {
       quotaProjectId: quotaProjectId,
       openaiModel: openaiModel,
       translationContext: translationContext,
+      codexOptions: codexOptions,
       localLlmOptions: localLlmOptions,
       parallelTranslations: parallelTranslations,
       reviewedTranslationsDir: reviewedTranslationsDir,
@@ -246,6 +261,7 @@ void main(List<String> args) async {
       quotaProjectId: quotaProjectId,
       openaiModel: openaiModel,
       translationContext: translationContext,
+      codexOptions: codexOptions,
       localLlmOptions: localLlmOptions,
       parallelTranslations: parallelTranslations,
       reviewedTranslationsDir: reviewedTranslationsDir,

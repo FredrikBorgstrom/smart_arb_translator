@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 import 'package:smart_arb_translator/src/argument_parser.dart';
 import 'package:smart_arb_translator/src/cache_cleanup.dart';
 import 'package:smart_arb_translator/src/directory_processor.dart';
+import 'package:smart_arb_translator/src/models/codex_options.dart';
 import 'package:smart_arb_translator/src/models/local_llm_options.dart';
 import 'package:smart_arb_translator/src/localization_validator.dart';
 import 'package:smart_arb_translator/src/models/arb_document.dart';
@@ -102,11 +103,27 @@ Future<void> main(List<String> args) async {
             profile: result[ArbTranslatorArgumentParser.localLlmProfile] as String? ?? 'openai_chat_json',
           )
         : null;
+    final codexOptions = translationService == 'codex' && !manualOnly
+        ? CodexOptions.fromConfig(
+            executable: result[ArbTranslatorArgumentParser.codexExecutable] as String?,
+            model: result[ArbTranslatorArgumentParser.codexModel] as String?,
+            reasoningEffort: result[ArbTranslatorArgumentParser.codexReasoningEffort] as String?,
+            timeoutSeconds: ArbTranslatorArgumentParser.parseCodexTimeoutSeconds(
+              result[ArbTranslatorArgumentParser.codexTimeoutSeconds],
+            ),
+            maxAgents: ArbTranslatorArgumentParser.parseCodexMaxAgents(
+              result[ArbTranslatorArgumentParser.codexMaxAgents],
+            ),
+          )
+        : null;
     final translationContext = _readTranslationContext(
       result[ArbTranslatorArgumentParser.translationContext] as String?,
       result[ArbTranslatorArgumentParser.translationContextFile] as String?,
     );
     final reviewedTranslationsDir = result[ArbTranslatorArgumentParser.reviewedTranslationsDir] as String?;
+    final parallelTranslations = ArbTranslatorArgumentParser.parseParallelTranslations(
+      result[ArbTranslatorArgumentParser.parallelTranslations],
+    );
 
     // Determine processing mode
     final sourceArb = result[ArbTranslatorArgumentParser.sourceArb] as String?;
@@ -177,7 +194,9 @@ Future<void> main(List<String> args) async {
         quotaProjectId: quotaProjectId,
         openaiModel: openaiModel,
         translationContext: translationContext,
+        codexOptions: codexOptions,
         localLlmOptions: localLlmOptions,
+        parallelTranslations: parallelTranslations,
         reviewedTranslationsDir: reviewedTranslationsDir,
         manualOnly: manualOnly,
         resourceKeyFilter: keyFilter.isEmpty ? null : keyFilter.toSet(),
@@ -209,7 +228,9 @@ Future<void> main(List<String> args) async {
         quotaProjectId: quotaProjectId,
         openaiModel: openaiModel,
         translationContext: translationContext,
+        codexOptions: codexOptions,
         localLlmOptions: localLlmOptions,
+        parallelTranslations: parallelTranslations,
         reviewedTranslationsDir: reviewedTranslationsDir,
         manualOnly: manualOnly,
         sourceFileFilters: sourceFileFilter.isEmpty ? null : sourceFileFilter.toSet(),

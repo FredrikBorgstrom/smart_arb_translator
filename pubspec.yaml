@@ -1,6 +1,6 @@
 name: smart_arb_translator
-description: An intelligent command-line utility for translating ARB files with Google Translate, OpenAI, and local LLMs, featuring smart change detection and modular architecture.
-version: 1.9.0
+description: An intelligent command-line utility for translating ARB files with Google Translate, OpenAI, local LLMs, or multi-agent Codex, featuring smart change detection and modular architecture.
+version: 1.10.0
 repository: https://github.com/FredrikBorgstrom/smart_arb_translator.git
 homepage: https://github.com/FredrikBorgstrom/smart_arb_translator
 documentation: https://github.com/FredrikBorgstrom/smart_arb_translator#readme

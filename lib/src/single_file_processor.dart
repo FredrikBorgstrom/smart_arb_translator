@@ -5,9 +5,11 @@ import 'package:path/path.dart' as path;
 import 'package:http/http.dart' as http;
 import 'package:smart_arb_translator/src/dart_code_generator.dart';
 import 'package:smart_arb_translator/src/arb_processor.dart';
+import 'package:smart_arb_translator/src/codex_translation_service.dart';
 import 'package:smart_arb_translator/src/file_operations.dart';
 import 'package:smart_arb_translator/src/models/arb_document.dart';
 import 'package:smart_arb_translator/src/models/arb_resource.dart';
+import 'package:smart_arb_translator/src/models/codex_options.dart';
 import 'package:smart_arb_translator/src/models/google_resource_adapter.dart';
 import 'package:smart_arb_translator/src/models/local_llm_options.dart';
 import 'package:smart_arb_translator/src/models/translation_resource.dart';
@@ -109,6 +111,7 @@ class SingleFileProcessor {
     String? quotaProjectId,
     String openaiModel = 'gpt-4o-mini',
     String? translationContext,
+    CodexOptions? codexOptions,
     LocalLlmOptions? localLlmOptions,
     int parallelTranslations = 1,
     String? reviewedTranslationsDir,
@@ -189,6 +192,7 @@ class SingleFileProcessor {
         quotaProjectId: quotaProjectId,
         openaiModel: openaiModel,
         translationContext: translationContext,
+        codexOptions: codexOptions,
         localLlmOptions: localLlmOptions,
         reviewedTranslationsDir: reviewedTranslationsDir,
         manualOnly: manualOnly,
@@ -319,6 +323,7 @@ class SingleFileProcessor {
     String? quotaProjectId,
     String openaiModel = 'gpt-4o-mini',
     String? translationContext,
+    CodexOptions? codexOptions,
     LocalLlmOptions? localLlmOptions,
     int parallelTranslations = 1,
     String? reviewedTranslationsDir,
@@ -365,6 +370,7 @@ class SingleFileProcessor {
         quotaProjectId: quotaProjectId,
         openaiModel: openaiModel,
         translationContext: translationContext,
+        codexOptions: codexOptions,
         localLlmOptions: localLlmOptions,
         reviewedTranslationsDir: reviewedTranslationsDir,
         manualOnly: manualOnly,
@@ -396,6 +402,7 @@ class SingleFileProcessor {
     required String? quotaProjectId,
     required String openaiModel,
     required String? translationContext,
+    required CodexOptions? codexOptions,
     required LocalLlmOptions? localLlmOptions,
     required String? reviewedTranslationsDir,
     required bool manualOnly,
@@ -412,12 +419,20 @@ class SingleFileProcessor {
           ),
         )
         .toList(growable: false);
-    final model = translationService == 'local_llm' ? (localLlmOptions?.model ?? '') : openaiModel;
+    final model = translationService == 'local_llm'
+        ? (localLlmOptions?.model ?? '')
+        : translationService == 'codex'
+            ? (codexOptions?.cacheIdentity ?? '')
+            : openaiModel;
     final endpointClass = translationService == 'local_llm'
         ? '${localLlmOptions?.endpoint.scheme}://${localLlmOptions?.endpoint.host}'
-        : translationService == 'openai'
-            ? 'https://api.openai.com'
-            : 'google-translation-api';
+        : translationService == 'codex'
+            ? 'codex-cli'
+            : translationService == 'openai'
+                ? 'https://api.openai.com'
+                : 'google-translation-api';
+    final promptVersion =
+        translationService == 'codex' ? CodexTranslationService.promptVersion : TranslationFingerprint.algorithmVersion;
     final reviewed = ReviewedOverlay.load(
       rootDirectory: reviewedTranslationsDir,
       locale: languageCode,
@@ -438,6 +453,7 @@ class SingleFileProcessor {
         provider: translationService,
         endpointClass: endpointClass,
         model: model,
+        promptVersion: promptVersion,
       );
       final override = sourceDocument.resources[resource.id]!.attributes?.xTranslations?[languageCode];
       // A current reviewed overlay is the authoritative target. Embedded
@@ -469,7 +485,7 @@ class SingleFileProcessor {
         'provider': translationService,
         'endpointClass': endpointClass,
         'model': model,
-        'promptVersion': TranslationFingerprint.algorithmVersion,
+        'promptVersion': promptVersion,
         'sourceTopic': sourceTopic,
         'placeholderMetadata': resource.placeholders,
         'glossary': resource.glossary,
@@ -478,16 +494,18 @@ class SingleFileProcessor {
     }
     if (missing.isNotEmpty) throw ManualCoverageException(missing);
     if (providerResources.isNotEmpty) {
-      if (translationService == 'openai' || translationService == 'local_llm') {
+      if (translationService == 'openai' || translationService == 'local_llm' || translationService == 'codex') {
         final results = await TranslationService.translateResources(
           resources: providerResources,
           parameters: <String, dynamic>{
             'target': languageCode,
+            'source': sourceDocument.locale,
             'key': apiKey,
             'openai_model': openaiModel,
             'translation_context': translationContext,
           },
           translationService: translationService,
+          codexOptions: codexOptions,
           localLlmOptions: localLlmOptions,
           client: client,
         );
