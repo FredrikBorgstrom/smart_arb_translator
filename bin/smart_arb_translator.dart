@@ -9,10 +9,10 @@ import 'package:smart_arb_translator/src/argument_parser.dart';
 import 'package:smart_arb_translator/src/cache_cleanup.dart';
 import 'package:smart_arb_translator/src/console_utils.dart';
 import 'package:smart_arb_translator/src/directory_processor.dart';
-import 'package:smart_arb_translator/src/models/local_llm_options.dart';
-import 'package:smart_arb_translator/src/models/codex_options.dart';
 import 'package:smart_arb_translator/src/localization_validator.dart';
 import 'package:smart_arb_translator/src/models/arb_document.dart';
+import 'package:smart_arb_translator/src/models/codex_options.dart';
+import 'package:smart_arb_translator/src/models/local_llm_options.dart';
 import 'package:smart_arb_translator/src/models/translation_resource.dart';
 import 'package:smart_arb_translator/src/reviewed_overlay.dart';
 import 'package:smart_arb_translator/src/single_file_processor.dart';
@@ -171,7 +171,9 @@ void main(List<String> args) async {
         ? [File(sourceArb!)]
         : Directory(sourcePath).listSync(recursive: true).whereType<File>().where((file) => file.path.endsWith('.arb'));
     final issues = candidate.expand((file) => LocalizationValidator.validateArbFile(file));
-    for (final issue in issues) print(issue);
+    for (final issue in issues) {
+      print(issue);
+    }
     if (issues.isNotEmpty) exitCode = 2;
     return;
   }
