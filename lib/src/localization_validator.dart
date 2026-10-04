@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'models/arb_document.dart';
+import 'translation_service.dart';
 import 'models/translation_resource.dart';
 
 class LocalizationValidationIssue {
@@ -78,6 +79,10 @@ class LocalizationValidator {
           !_sameSet(sourceStructured.icuRoles.toSet(), targetStructured.icuRoles.toSet()) ||
           !_sameSet(sourceStructured.icuBranches.toSet(), targetStructured.icuBranches.toSet())) {
         issues.add(LocalizationValidationIssue('icu_integrity', entry.key, 'Plural/select roles or branches differ.'));
+      }
+      if (!TranslationService.bracesMatch(entry.value.text, value)) {
+        issues.add(LocalizationValidationIssue(
+            'brace_parity', entry.key, 'Translation has a different number of braces than its source.'));
       }
       if (_looksLikePassthrough(entry.key, entry.value.text, value, targetLocale, allowedPassthrough)) {
         issues.add(LocalizationValidationIssue('source_passthrough', entry.key, 'Likely untranslated source text.'));

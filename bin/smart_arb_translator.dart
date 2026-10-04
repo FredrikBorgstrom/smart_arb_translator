@@ -130,6 +130,10 @@ void main(List<String> args) async {
           endpoint: result[ArbTranslatorArgumentParser.localLlmUrl] as String? ?? LocalLlmOptions.defaultEndpoint,
           model: result[ArbTranslatorArgumentParser.localLlmModel] as String,
           jsonMode: result[ArbTranslatorArgumentParser.localLlmJsonMode] as bool? ?? true,
+          jsonSchema: result[ArbTranslatorArgumentParser.localLlmJsonSchema] as bool? ?? false,
+          batchSize: ArbTranslatorArgumentParser.parseLocalLlmBatchSize(
+            result[ArbTranslatorArgumentParser.localLlmBatchSize],
+          ),
           timeoutSeconds: ArbTranslatorArgumentParser.parseLocalLlmTimeoutSeconds(
             result[ArbTranslatorArgumentParser.localLlmTimeoutSeconds],
           ),

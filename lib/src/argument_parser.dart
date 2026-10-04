@@ -62,6 +62,8 @@ class ArbTranslatorArgumentParser {
   static const _localLlmUrl = 'local_llm_url';
   static const _localLlmModel = 'local_llm_model';
   static const _localLlmJsonMode = 'local_llm_json_mode';
+  static const _localLlmJsonSchema = 'local_llm_json_schema';
+  static const _localLlmBatchSize = 'local_llm_batch_size';
   static const _localLlmTimeoutSeconds = 'local_llm_timeout_seconds';
   static const _localLlmMaxOutputTokens = 'local_llm_max_output_tokens';
   static const _localLlmReasoningEffort = 'local_llm_reasoning_effort';
@@ -246,6 +248,17 @@ class ArbTranslatorArgumentParser {
         help: 'request JSON mode from the local OpenAI-compatible endpoint',
         defaultsTo: true,
       )
+      ..addFlag(
+        _localLlmJsonSchema,
+        help: 'constrain each reply with a JSON schema naming the exact resource ids and count '
+            '(OpenAI structured outputs; Ollama, llama.cpp and vLLM support it)',
+        defaultsTo: false,
+      )
+      ..addOption(
+        _localLlmBatchSize,
+        help: 'resources per local LLM request; 0 sends every pending resource of a file in one request',
+        defaultsTo: '0',
+      )
       ..addOption(
         _localLlmTimeoutSeconds,
         help: 'maximum duration of one local LLM request, in seconds',
@@ -368,6 +381,14 @@ class ArbTranslatorArgumentParser {
     return parsed;
   }
 
+  /// Resources per local LLM request: 0 (the default) is every pending
+  /// resource of a file in one request, as before the option existed.
+  static int parseLocalLlmBatchSize(dynamic raw) {
+    if (raw == null) return 0;
+    final parsed = raw is int ? raw : int.tryParse(raw.toString().trim());
+    return parsed == null || parsed < 0 ? 0 : parsed;
+  }
+
   /// Parses command-line arguments and merges them with pubspec.yaml configuration.
   ///
   /// This method performs the complete argument processing workflow:
@@ -485,6 +506,8 @@ class ArbTranslatorArgumentParser {
     final localLlmUrl = (mergedResult[_localLlmUrl] as String?)?.trim() ?? LocalLlmOptions.defaultEndpoint;
     final localLlmModel = (mergedResult[_localLlmModel] as String?)?.trim();
     final localLlmJsonMode = mergedResult[_localLlmJsonMode] as bool? ?? true;
+    final localLlmJsonSchema = mergedResult[_localLlmJsonSchema] as bool? ?? false;
+    final localLlmBatchSize = parseLocalLlmBatchSize(mergedResult[_localLlmBatchSize]);
     final localLlmTimeoutSeconds = parseLocalLlmTimeoutSeconds(
       mergedResult[_localLlmTimeoutSeconds],
     );
@@ -561,6 +584,8 @@ class ArbTranslatorArgumentParser {
           endpoint: localLlmUrl,
           model: localLlmModel,
           jsonMode: localLlmJsonMode,
+          jsonSchema: localLlmJsonSchema,
+          batchSize: localLlmBatchSize,
           timeoutSeconds: localLlmTimeoutSeconds,
           maxOutputTokens: localLlmMaxOutputTokens,
           reasoningEffort: localLlmReasoningEffort,
@@ -674,6 +699,12 @@ class ArbTranslatorArgumentParser {
     if (pubspecConfig.localLlmJsonMode != null) {
       mergedOptions[_localLlmJsonMode] = pubspecConfig.localLlmJsonMode;
     }
+    if (pubspecConfig.localLlmJsonSchema != null) {
+      mergedOptions[_localLlmJsonSchema] = pubspecConfig.localLlmJsonSchema;
+    }
+    if (pubspecConfig.localLlmBatchSize != null) {
+      mergedOptions[_localLlmBatchSize] = pubspecConfig.localLlmBatchSize.toString();
+    }
     if (pubspecConfig.localLlmTimeoutSeconds != null) {
       mergedOptions[_localLlmTimeoutSeconds] = pubspecConfig.localLlmTimeoutSeconds;
     }
@@ -722,6 +753,8 @@ class ArbTranslatorArgumentParser {
     mergedOptions[_codexBatchMaxResources] ??= CodexOptions.defaultBatchMaxResources.toString();
     mergedOptions[_localLlmUrl] ??= LocalLlmOptions.defaultEndpoint;
     mergedOptions[_localLlmJsonMode] ??= true;
+    mergedOptions[_localLlmJsonSchema] ??= false;
+    mergedOptions[_localLlmBatchSize] ??= '0';
     mergedOptions[_localLlmTimeoutSeconds] ??= LocalLlmOptions.defaultTimeoutSeconds.toString();
     mergedOptions[_localLlmMaxOutputTokens] ??= LocalLlmOptions.defaultMaxOutputTokens.toString();
     mergedOptions[_localLlmProfile] ??= 'openai_chat_json';
@@ -1129,6 +1162,8 @@ class ArbTranslatorArgumentParser {
       'local_llm_url:',
       'local_llm_model:',
       'local_llm_json_mode:',
+      'local_llm_json_schema:',
+      'local_llm_batch_size:',
       'local_llm_timeout_seconds:',
       'local_llm_max_output_tokens:',
       'local_llm_reasoning_effort:',
@@ -1242,6 +1277,8 @@ class ArbTranslatorArgumentParser {
   static String get localLlmUrl => _localLlmUrl;
   static String get localLlmModel => _localLlmModel;
   static String get localLlmJsonMode => _localLlmJsonMode;
+  static String get localLlmJsonSchema => _localLlmJsonSchema;
+  static String get localLlmBatchSize => _localLlmBatchSize;
   static String get localLlmTimeoutSeconds => _localLlmTimeoutSeconds;
   static String get localLlmMaxOutputTokens => _localLlmMaxOutputTokens;
   static String get localLlmReasoningEffort => _localLlmReasoningEffort;

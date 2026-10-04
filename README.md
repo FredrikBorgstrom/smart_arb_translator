@@ -267,6 +267,8 @@ smart_arb_translator:
   local_llm_url: http://127.0.0.1:11434/v1/chat/completions
   local_llm_model: qwen3.5:27b
   local_llm_json_mode: true
+  local_llm_json_schema: true # constrain replies to the exact ids; Ollama, llama.cpp, vLLM
+  local_llm_batch_size: 20 # resources per request; 0 sends a whole file at once
   local_llm_timeout_seconds: 600
   local_llm_max_output_tokens: 2048
   local_llm_reasoning_effort: none # optional; none, low, medium, or high
@@ -281,6 +283,21 @@ or starts one. `local_llm_max_output_tokens` prevents local reasoning models
 from consuming the entire request timeout before returning a translation.
 `local_llm_reasoning_effort` is optional because some compatible runtimes do
 not implement it.
+
+`local_llm_json_schema` sends a JSON schema with each request — exactly as many
+translations as resources, each with one of the supplied ids — through
+OpenAI's structured-outputs `response_format`. A runtime that decodes against
+the schema (Ollama, llama.cpp, vLLM) cannot then echo a mangled id, answer with
+bare strings, or keep writing after the JSON closes; without it a prompt can
+only ask. `local_llm_batch_size` caps how many resources share one request, so a
+long file is not one prompt the size of the file, and a batch that fails costs
+only its own resources.
+
+A resource the model cannot translate on any attempt — a reply that never
+parses, never keeps its placeholders, or changes the brace structure — is
+skipped rather than failing the run, as is a batch that times out. Skipped
+resources keep their previous or source text, are listed in the summary, and
+are sent again on the next run.
 
 An optional local smoke test is excluded by default: set
 `SMART_ARB_LOCAL_SMOKE_MODEL` (and optionally URL/profile) then run
@@ -523,6 +540,8 @@ smart_arb_translator:
   # local_llm_url: http://127.0.0.1:11434/v1/chat/completions
   # local_llm_model: qwen3.5:27b              # Required when translation_service=local_llm
   # local_llm_json_mode: true                 # Disable for endpoints that reject response_format
+  # local_llm_json_schema: false              # Constrain replies with a JSON schema of the exact ids
+  # local_llm_batch_size: 0                   # Resources per request; 0 sends a whole file at once
   # local_llm_timeout_seconds: 600            # Local inference can be slower than a hosted API
   # local_llm_profile: openai_chat_json        # or translategemma
   # reviewed_translations_dir: lib/l10n_reviewed
@@ -686,6 +705,8 @@ All options can be configured in `pubspec.yaml` under the `smart_arb_translator`
 | `--local_llm_url` | OpenAI-compatible local chat-completions endpoint or base URL | `http://127.0.0.1:11434/v1/chat/completions` | `local_llm_url` |
 | `--local_llm_model` | Model identifier exposed by the local runtime; required for `local_llm` | - | `local_llm_model` |
 | `--[no-]local_llm_json_mode` | Request JSON mode through `response_format` | `true` | `local_llm_json_mode` |
+| `--[no-]local_llm_json_schema` | Constrain each reply with a JSON schema of the exact ids and count | `false` | `local_llm_json_schema` |
+| `--local_llm_batch_size` | Resources per local request; `0` sends every pending resource of a file at once | `0` | `local_llm_batch_size` |
 | `--local_llm_timeout_seconds` | Timeout for one local inference request | `600` | `local_llm_timeout_seconds` |
 | `--local_llm_max_output_tokens` | Maximum completion tokens returned by one local request | `2048` | `local_llm_max_output_tokens` |
 | `--local_llm_reasoning_effort` | Optional local reasoning control: `none`, `low`, `medium`, or `high` | - | `local_llm_reasoning_effort` |

@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `local_llm_json_schema` (`--local_llm_json_schema`): constrain each local model reply with a JSON schema naming the exact resource ids and count, through OpenAI's structured-outputs `response_format`. Runtimes that decode against the schema (Ollama, llama.cpp, vLLM) can then no longer echo a mangled id, answer with bare strings, or write past the closing brace.
+- `local_llm_batch_size` (`--local_llm_batch_size`): resources per local request. The default, `0`, keeps the previous behaviour of one request per file.
+- The validator reports `brace_parity` when a translation has a different number of `{` or `}` than its source.
+
+### Changed
+
+- A local or OpenAI resource the model cannot translate on any attempt is skipped instead of aborting the run, and so is a local batch that times out. Skipped resources keep their previous or source text, are listed in the summary, and are retried on the next run — the treatment a failed Codex locale already had.
+- Keyed requests state one reply format. They used to be told both `{"translations":["..."]}` and the keyed object form, and models sometimes answered with the first.
+- A reply that is not valid JSON — cut off at the output or context limit, or followed by text — is retried and falls back to per-item translation like any other malformed reply, instead of ending the run.
+
+### Fixed
+
+- Two placeholders separated by a space (`{list} {item}`) came back as `{list}SMART_ARB_PH_1__`: the pattern that repairs loosely spelled placeholder tokens ran on into the next token, and the token check still passed because the two then shared their underscores.
+- A reply to a request for one resource is accepted whatever id it echoes. Local models mangle ids — translating them, doubling a prefix — and at temperature 0 they do it on every retry.
+- A translation that closes with extra braces after the message (`…}}]}]`) passed the ICU check, which compares variables, roles and branches; it is now refused and retried.
+
 ## [1.11.1] - 2026-09-27
 
 ### Fixed

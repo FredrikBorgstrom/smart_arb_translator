@@ -40,6 +40,17 @@ class LocalLlmOptions {
   /// Whether to request JSON mode with OpenAI's `response_format` field.
   final bool jsonMode;
 
+  /// Whether a structured request constrains the reply with a JSON schema:
+  /// the exact resource ids, each once, and nothing after the closing brace.
+  /// A runtime that decodes against the schema (Ollama, llama.cpp, vLLM)
+  /// cannot then echo a mangled id, answer with bare strings, or run on past
+  /// the JSON — failures a prompt can only discourage.
+  final bool jsonSchema;
+
+  /// Resources sent per request; 0 sends every pending resource of a file at
+  /// once. A batch that fails costs only its own resources.
+  final int batchSize;
+
   /// Maximum duration of a single local inference request.
   final Duration timeout;
 
@@ -57,6 +68,8 @@ class LocalLlmOptions {
     required this.endpoint,
     required this.model,
     this.jsonMode = true,
+    this.jsonSchema = false,
+    this.batchSize = 0,
     this.timeout = const Duration(seconds: defaultTimeoutSeconds),
     this.maxOutputTokens = defaultMaxOutputTokens,
     this.reasoningEffort,
@@ -68,6 +81,8 @@ class LocalLlmOptions {
     String endpoint = defaultEndpoint,
     required String model,
     bool jsonMode = true,
+    bool jsonSchema = false,
+    int batchSize = 0,
     int timeoutSeconds = defaultTimeoutSeconds,
     int maxOutputTokens = defaultMaxOutputTokens,
     String? reasoningEffort,
@@ -126,6 +141,8 @@ class LocalLlmOptions {
       endpoint: normalizedEndpoint,
       model: normalizedModel,
       jsonMode: jsonMode,
+      jsonSchema: jsonSchema,
+      batchSize: batchSize < 0 ? 0 : batchSize,
       timeout: Duration(seconds: timeoutSeconds),
       maxOutputTokens: maxOutputTokens,
       reasoningEffort:

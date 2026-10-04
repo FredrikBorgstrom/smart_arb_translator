@@ -579,6 +579,7 @@ class SingleFileProcessor {
     if (providerResources.isNotEmpty) {
       if (translationService == 'openai' || translationService == 'local_llm' || translationService == 'codex') {
         List<TranslationResult> results;
+        var localeSkipped = false;
         try {
           results = await TranslationService.translateResources(
             resources: providerResources,
@@ -607,11 +608,32 @@ class SingleFileProcessor {
             }
           }
           results = const [];
+          localeSkipped = true;
         }
         for (final result in results) {
           resolved[result.id] = TranslationService.sanitizeTranslation(
             result.translation,
           );
+        }
+        // A provider may leave out a resource it could not translate rather
+        // than fail the run (a local model that never answers one in shape).
+        // Same treatment as a skipped Codex locale: previous or source text,
+        // previous provenance, so the next run sends it again.
+        final returned = results.map((result) => result.id).toSet();
+        final missing = [
+          for (final resource in providerResources)
+            if (!returned.contains(resource.id)) resource.id,
+        ];
+        if (!localeSkipped && missing.isNotEmpty) {
+          SkippedTranslations.record(languageCode, sourceTopic, missing, 'no usable translation came back');
+          for (final id in missing) {
+            final previous = plan.previousProvenance[id];
+            if (previous == null) {
+              nextProvenance.remove(id);
+            } else {
+              nextProvenance[id] = previous;
+            }
+          }
         }
       } else {
         // Google LLM supports opaque request labels. Only resources with no
@@ -762,7 +784,7 @@ class SkippedTranslations {
     final locales = _entries.map((entry) => entry.locale).toSet().toList()..sort();
     final count = _entries.fold<int>(0, (sum, entry) => sum + entry.ids.length);
     print('');
-    print('⚠ $count translation(s) were skipped after Codex failed for: ${locales.join(', ')}.');
+    print('⚠ $count translation(s) were skipped for: ${locales.join(', ')}.');
     print('  They keep their previous or source-language text. Run the translator again to fill them in.');
   }
 }

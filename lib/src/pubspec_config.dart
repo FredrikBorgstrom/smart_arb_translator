@@ -114,6 +114,12 @@ class PubspecConfig {
   /// Whether `local_llm` should request JSON response mode.
   final bool? localLlmJsonMode;
 
+  /// Whether `local_llm` replies are constrained by a JSON schema.
+  final bool? localLlmJsonSchema;
+
+  /// Resources per `local_llm` request; 0 is a whole file.
+  final int? localLlmBatchSize;
+
   /// Maximum duration of one local inference request, in seconds.
   final int? localLlmTimeoutSeconds;
 
@@ -179,6 +185,8 @@ class PubspecConfig {
     this.localLlmUrl,
     this.localLlmModel,
     this.localLlmJsonMode,
+    this.localLlmJsonSchema,
+    this.localLlmBatchSize,
     this.localLlmTimeoutSeconds,
     this.localLlmMaxOutputTokens,
     this.localLlmReasoningEffort,
@@ -260,6 +268,8 @@ class PubspecConfig {
         localLlmUrl: config['local_llm_url'] as String?,
         localLlmModel: config['local_llm_model'] as String?,
         localLlmJsonMode: config['local_llm_json_mode'] as bool?,
+        localLlmJsonSchema: config['local_llm_json_schema'] as bool?,
+        localLlmBatchSize: _parseNonNegativeInt(config['local_llm_batch_size']),
         localLlmTimeoutSeconds: _parsePositiveInt(
           config['local_llm_timeout_seconds'],
         ),
@@ -367,6 +377,8 @@ class PubspecConfig {
         localLlmUrl != null ||
         localLlmModel != null ||
         localLlmJsonMode != null ||
+        localLlmJsonSchema != null ||
+        localLlmBatchSize != null ||
         localLlmTimeoutSeconds != null ||
         localLlmMaxOutputTokens != null ||
         localLlmReasoningEffort != null ||
@@ -414,6 +426,8 @@ class PubspecConfig {
         'localLlmUrl: $localLlmUrl, '
         'localLlmModel: $localLlmModel, '
         'localLlmJsonMode: $localLlmJsonMode, '
+        'localLlmJsonSchema: $localLlmJsonSchema, '
+        'localLlmBatchSize: $localLlmBatchSize, '
         'localLlmTimeoutSeconds: $localLlmTimeoutSeconds, '
         'localLlmMaxOutputTokens: $localLlmMaxOutputTokens, '
         'localLlmReasoningEffort: $localLlmReasoningEffort, '

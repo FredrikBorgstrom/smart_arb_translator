@@ -25,6 +25,13 @@ class TranslationService {
   static const String _openAiDefaultModel = 'gpt-4o-mini';
   static const String _openAiChatCompletionsUrl = 'https://api.openai.com/v1/chat/completions';
   static const String _openAiPlaceholderTokenPrefix = '__SMART_ARB_PH_';
+
+  /// What the per-item fallback answers, in keyed (resource) mode, for an
+  /// item the model could not translate on any attempt: [translateResources]
+  /// leaves that resource out of its results instead of failing every other
+  /// resource in the run, and the file processor records it as skipped so
+  /// the next run retries it. Never written anywhere.
+  static const String _skippedResource = '\u0000smart_arb_translator:skipped';
   static const String _openAiPlaceholderTokenSuffix = '__';
   static final RegExp _openAiNoTranslateRegex = RegExp(
     r'<span class="notranslate">(.*?)</span>',
@@ -38,7 +45,11 @@ class TranslationService {
     r'__SMART_ARB_PH_(\d+)__',
   );
   static final RegExp _openAiPlaceholderVariantRegex = RegExp(
-    r'__(?:[\s_-])*smart(?:[\s_-])*arb(?:[\s_-])*ph(?:[\s_-])*(\d+)(?:[\s_-])*__',
+    // The trailing separator is lazy: greedy, it ran on through the space and
+    // the opening underscores of the next token, so `{list} {item}` came back
+    // as `{list}SMART_ARB_PH_1__` — and the token check still passed, because
+    // the two tokens then shared their underscores.
+    r'__(?:[\s_-])*smart(?:[\s_-])*arb(?:[\s_-])*ph(?:[\s_-])*(\d+)(?:[\s_-])*?__',
     caseSensitive: false,
   );
   static final RegExp _comparisonWhitespaceRegex = RegExp(r'\s+');
@@ -303,30 +314,55 @@ class TranslationService {
       return results;
     }
     final openAiModel = (parameters['openai_model'] as String?)?.trim();
-    final values = await _translateWithChatCompletions(
-      translateList: resources.map(_protectStructuredResourcePlaceholders).toList(growable: false),
-      resources: resources,
-      parameters: parameters,
-      endpoint: translationService == 'openai' ? Uri.parse(_openAiChatCompletionsUrl) : localLlmOptions!.endpoint,
-      model: translationService == 'openai'
-          ? (openAiModel == null || openAiModel.isEmpty ? _openAiDefaultModel : openAiModel)
-          : localLlmOptions!.model,
-      providerLabel: translationService == 'openai' ? 'OpenAI' : 'Local LLM',
-      apiKey: apiKey == null || apiKey.isEmpty ? null : apiKey,
-      jsonMode: translationService == 'openai' || localLlmOptions!.jsonMode,
-      timeout: translationService == 'openai' ? null : localLlmOptions!.timeout,
-      maxOutputTokens: translationService == 'openai' ? null : localLlmOptions!.maxOutputTokens,
-      reasoningEffort: translationService == 'openai' ? null : localLlmOptions!.reasoningEffort,
-      client: client,
-      allowPerItemFallback: allowPerItemFallback,
-    );
-    return List<TranslationResult>.generate(
-      resources.length,
-      (index) => TranslationResult(
-        id: resources[index].id,
-        translation: values[index],
-      ),
-    );
+    final local = translationService == 'local_llm';
+    final providerLabel = local ? 'Local LLM' : 'OpenAI';
+    final batchSize = local && localLlmOptions!.batchSize > 0 ? localLlmOptions.batchSize : resources.length;
+    final batchCount = (resources.length + batchSize - 1) ~/ batchSize;
+    final results = <TranslationResult>[];
+    for (var start = 0, batch = 1; start < resources.length; start += batchSize, batch++) {
+      final slice =
+          resources.sublist(start, start + batchSize > resources.length ? resources.length : start + batchSize);
+      if (batchCount > 1) {
+        print('  • $providerLabel batch $batch/$batchCount (${slice.length} resource(s))');
+      }
+      List<String> values;
+      try {
+        values = await _translateWithChatCompletions(
+          translateList: slice.map(_protectStructuredResourcePlaceholders).toList(growable: false),
+          resources: slice,
+          parameters: parameters,
+          endpoint: local ? localLlmOptions!.endpoint : Uri.parse(_openAiChatCompletionsUrl),
+          model: local
+              ? localLlmOptions!.model
+              : (openAiModel == null || openAiModel.isEmpty ? _openAiDefaultModel : openAiModel),
+          providerLabel: providerLabel,
+          apiKey: apiKey == null || apiKey.isEmpty ? null : apiKey,
+          jsonMode: !local || localLlmOptions!.jsonMode,
+          jsonSchema: local && localLlmOptions!.jsonSchema,
+          timeout: local ? localLlmOptions!.timeout : null,
+          maxOutputTokens: local ? localLlmOptions!.maxOutputTokens : null,
+          reasoningEffort: local ? localLlmOptions!.reasoningEffort : null,
+          client: client,
+          allowPerItemFallback: allowPerItemFallback,
+        );
+      } on _LlmFormatException catch (error) {
+        // A batch of one has no per-item fallback to fall to; past its retry
+        // it is a resource the model cannot do, not a reason to lose the run.
+        if (slice.length != 1) rethrow;
+        stderr.writeln('⚠️  $providerLabel could not translate "${slice.single.id}": ${error.message}');
+        continue;
+      } on TimeoutException catch (error) {
+        // One slow batch costs its own resources; the caller records them as
+        // skipped and the next run retries them.
+        stderr.writeln('⚠️  $providerLabel timed out on ${slice.length} resource(s): $error');
+        continue;
+      }
+      for (var index = 0; index < slice.length; index++) {
+        if (values[index] == _skippedResource) continue;
+        results.add(TranslationResult(id: slice[index].id, translation: values[index]));
+      }
+    }
+    return results;
   }
 
   static Future<TranslationResult> _translateWithTranslateGemma({
@@ -627,6 +663,7 @@ class TranslationService {
     required String providerLabel,
     required String? apiKey,
     required bool jsonMode,
+    bool jsonSchema = false,
     required http.Client? client,
     required bool allowPerItemFallback,
     List<TranslationResource>? resources,
@@ -659,6 +696,7 @@ class TranslationService {
               expectedCount: translateList.length,
               strictRetryMode: attempt > 0,
               includeResponseFormat: jsonMode,
+              jsonSchema: jsonSchema,
               maxOutputTokens: maxOutputTokens,
               reasoningEffort: reasoningEffort,
               resources: resources,
@@ -712,6 +750,7 @@ class TranslationService {
           providerLabel: providerLabel,
           apiKey: apiKey,
           jsonMode: jsonMode,
+          jsonSchema: jsonSchema,
           timeout: timeout,
           maxOutputTokens: maxOutputTokens,
           reasoningEffort: reasoningEffort,
@@ -799,6 +838,32 @@ class TranslationService {
     return body;
   }
 
+  /// The reply's shape as a JSON schema: exactly [expectedCount] items and,
+  /// for keyed requests, each an object whose `id` is one of [ids]. A runtime
+  /// that decodes against the schema cannot answer with a mangled id, a bare
+  /// string, or text after the closing brace.
+  static Map<String, dynamic> _translationsSchema({required int expectedCount, List<String>? ids}) {
+    final item = ids == null
+        ? <String, dynamic>{'type': 'string'}
+        : <String, dynamic>{
+            'type': 'object',
+            'properties': {
+              'id': {'type': 'string', 'enum': ids},
+              'translation': {'type': 'string'},
+            },
+            'required': ['id', 'translation'],
+            'additionalProperties': false,
+          };
+    return {
+      'type': 'object',
+      'properties': {
+        'translations': {'type': 'array', 'minItems': expectedCount, 'maxItems': expectedCount, 'items': item},
+      },
+      'required': ['translations'],
+      'additionalProperties': false,
+    };
+  }
+
   static Map<String, dynamic> _buildOpenAiRequestBody({
     required List<String> translateList,
     required String targetLanguage,
@@ -808,6 +873,7 @@ class TranslationService {
     required int expectedCount,
     required bool strictRetryMode,
     required bool includeResponseFormat,
+    bool jsonSchema = false,
     int? maxOutputTokens,
     String? reasoningEffort,
     List<TranslationResource>? resources,
@@ -831,10 +897,15 @@ class TranslationService {
       )
       ..writeln(
         'The "translations" array length must be exactly $expectedCount.',
-      )
-      ..writeln(
+      );
+    // One format, stated once. Keyed requests used to be told both — strings
+    // here, objects after the context file — and a model would sometimes
+    // answer with the first.
+    if (resources == null) {
+      systemPrompt.writeln(
         'Return strict JSON only in the format {"translations":["..."]}.',
       );
+    }
 
     if (strictRetryMode) {
       systemPrompt
@@ -867,7 +938,11 @@ class TranslationService {
           'Translate only each resource source_text field; source_text is already the authoritative placeholder-protected form.',
         )
         ..writeln(
-          'Use {"translations":[{"id":"<id>","translation":"<text>"}]}; never translate context fields.',
+          'Return strict JSON only in the format {"translations":[{"id":"<id>","translation":"<text>"}]}; '
+          'never translate context fields.',
+        )
+        ..writeln(
+          'Each id is an identifier: copy it exactly as supplied, never translate or alter it.',
         );
       userPayload['resources'] = List<Map<String, dynamic>>.generate(
         resources.length,
@@ -887,7 +962,19 @@ class TranslationService {
         {'role': 'user', 'content': jsonEncode(userPayload)},
       ],
     };
-    if (includeResponseFormat) {
+    if (jsonSchema) {
+      body['response_format'] = {
+        'type': 'json_schema',
+        'json_schema': {
+          'name': 'arb_translations',
+          'strict': true,
+          'schema': _translationsSchema(
+            expectedCount: expectedCount,
+            ids: resources?.map((resource) => resource.id).toList(growable: false),
+          ),
+        },
+      };
+    } else if (includeResponseFormat) {
       body['response_format'] = {'type': 'json_object'};
     }
     if (maxOutputTokens != null) {
@@ -945,7 +1032,17 @@ class TranslationService {
     }
 
     final normalizedContent = _stripJsonCodeFence(content.trim());
-    final parsedContent = jsonDecode(normalizedContent) as Map<String, dynamic>;
+    final Map<String, dynamic> parsedContent;
+    try {
+      parsedContent = jsonDecode(normalizedContent) as Map<String, dynamic>;
+    } on FormatException catch (error) {
+      // A reply cut off at the output or context limit, or one that ran on
+      // past its JSON, is the model's to retry — not a malformed request.
+      throw _LlmFormatException(
+        _LlmFormatErrorKind.malformed,
+        '$providerLabel returned JSON that does not parse: ${error.message}.',
+      );
+    }
     final rawTranslations = parsedContent['translations'] as List<dynamic>? ?? const [];
     List<String> translations;
     if (resources == null) {
@@ -954,6 +1051,17 @@ class TranslationService {
       );
     } else {
       final byId = <String, String>{};
+      // One resource asked for and one answer given: the id it echoes says
+      // nothing the request did not. Models do mangle it — translating it
+      // (`campaignTraceCopy` → `campaignTraceCopia`) or doubling a prefix — and
+      // at temperature 0 they do it on every retry.
+      if (resources.length == 1 && rawTranslations.length == 1) {
+        final raw = rawTranslations.single;
+        final text = raw is String ? raw : (raw is Map<String, dynamic> ? raw['translation'] : null);
+        if (text is String) {
+          return _normalizeOpenAiTranslationCount(<String>[text], expectedCount);
+        }
+      }
       for (final raw in rawTranslations) {
         if (raw is! Map<String, dynamic>) {
           throw _LlmFormatException(
@@ -1041,6 +1149,7 @@ class TranslationService {
     required String providerLabel,
     required String? apiKey,
     required bool jsonMode,
+    bool jsonSchema = false,
     required Duration? timeout,
     required int? maxOutputTokens,
     required String? reasoningEffort,
@@ -1059,6 +1168,7 @@ class TranslationService {
           providerLabel: providerLabel,
           apiKey: apiKey,
           jsonMode: jsonMode,
+          jsonSchema: jsonSchema,
           timeout: timeout,
           maxOutputTokens: maxOutputTokens,
           reasoningEffort: reasoningEffort,
@@ -1074,6 +1184,9 @@ class TranslationService {
             'keeping the source value as the translation fallback.',
           );
           translated.add(text);
+        } else if (resources != null && _isRecoverableLlmFormatError(error)) {
+          stderr.writeln('⚠️  $providerLabel could not translate "${resources[index].id}": ${error.message}');
+          translated.add(_skippedResource);
         } else {
           rethrow;
         }
@@ -1240,6 +1353,12 @@ class TranslationService {
   }) {
     for (var index = 0; index < resources.length; index++) {
       final suppliedSource = resources[index];
+      if (!bracesMatch(suppliedSource.sourceText, translations[index])) {
+        throw _LlmFormatException(
+          _LlmFormatErrorKind.placeholder,
+          '$providerLabel changed the number of braces in translation item ${index + 1}.',
+        );
+      }
       final sourceResource = ArbResource.fromEntries(
         textEntry: MapEntry(suppliedSource.id, suppliedSource.sourceText),
         attributesEntry: null,
@@ -1268,6 +1387,17 @@ class TranslationService {
         );
       }
     }
+  }
+
+  /// Whether [translation] has as many `{` and as many `}` as [source].
+  ///
+  /// Placeholders and plural/select branches carry over one for one, so the
+  /// counts hold however a language reorders them — and break when a model
+  /// closes a message with the tail of its own JSON (`…}}]}]`), which
+  /// passes a comparison of variables, roles and branches.
+  static bool bracesMatch(String source, String translation) {
+    int count(String text, int unit) => text.codeUnits.where((c) => c == unit).length;
+    return count(source, 0x7B) == count(translation, 0x7B) && count(source, 0x7D) == count(translation, 0x7D);
   }
 
   static bool _sameStringSet(Iterable<String> left, Iterable<String> right) {
@@ -1553,7 +1683,7 @@ class Action {
   });
 }
 
-enum _LlmFormatErrorKind { countMismatch, placeholder, untranslated, commentary }
+enum _LlmFormatErrorKind { countMismatch, placeholder, untranslated, commentary, malformed }
 
 class _LlmFormatException extends FormatException {
   final _LlmFormatErrorKind kind;
